@@ -21,9 +21,10 @@ def ingest(request: IngestRequest):
 def get_status():
     # Kiểm tra Qdrant có sẵn sàng không
     try:
-        from ai_engine.vector_db import VectorDB
-        vdb = VectorDB()
-        count = vdb.count()
+        from ai_engine.vector_db import VectorDBManager
+        vdb = VectorDBManager()
+        collection_info = vdb.client.get_collection(vdb.collection_name)
+        count = collection_info.points_count
         return {"status": "ok", "total_chunks": count}
     except Exception as e:
         return {"status": "error", "detail": str(e)}

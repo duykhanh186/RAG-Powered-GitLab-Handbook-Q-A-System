@@ -8,12 +8,14 @@ from app.services.chat_service import ChatService
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
+# Khởi tạo instance duy nhất để tránh load lại embedding model trên mỗi request
+chat_service = ChatService()
+
 
 @router.post("/", response_model=ChatResponse)
 def chat(request: ChatRequest, db: Session = Depends(get_db)):
     """Gửi câu hỏi và nhận câu trả lời từ AI, có context lịch sử."""
     try:
-        service = ChatService()
-        return service.process_message(request, db)
+        return chat_service.process_message(request, db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -53,7 +53,7 @@ class RAGChain:
             messages.append({"role": "assistant", "content": turn["answer"]})
         return messages
 
-    def ask(self, question: str, chat_history: List[Dict] = []) -> str:
+    def ask(self, question: str, chat_history: List[Dict] = []):
         """
         DÙNG GROQ ĐỂ GENERATION (PHÁT NGÔN)
         chat_history: lịch sử hội thoại từ ChatService, dạng:
@@ -67,7 +67,7 @@ class RAGChain:
             # 2. Khởi tạo Client Groq
             api_key = os.getenv("GROQ_API_KEY")
             if not api_key:
-                return "Lỗi: Không tìm thấy GROQ_API_KEY trong file .env"
+                return "Lỗi: Không tìm thấy GROQ_API_KEY trong file .env", []
 
             client = Groq(api_key=api_key)
 
@@ -98,7 +98,7 @@ class RAGChain:
                 temperature=0.2
             )
 
-            return chat_completion.choices[0].message.content
+            return chat_completion.choices[0].message.content, docs
 
         except Exception as e:
-            return f"Lỗi hệ thống Groq: {str(e)}"
+            return f"Lỗi hệ thống Groq: {str(e)}", []

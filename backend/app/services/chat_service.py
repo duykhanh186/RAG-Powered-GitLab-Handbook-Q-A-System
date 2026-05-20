@@ -31,17 +31,31 @@ class ChatService:
         ]
 
         # ✅ Gọi AI engine với context lịch sử
-        # RAGChain.ask() cần hỗ trợ tham số chat_history
-        answer = self.processor.ask(
+        # RAGChain.ask() trả về tuple (answer, docs)
+        answer, docs = self.processor.ask(
             request.question,
             chat_history=chat_history,
         )
+
+        # ✅ Trích xuất nguồn tài liệu độc bản (deduplicated)
+        seen_sources = set()
+        sources = []
+        for doc in docs:
+            src_path = doc.metadata.get("source", "Handbook")
+            if src_path not in seen_sources:
+                seen_sources.add(src_path)
+                sources.append({
+                    "content": doc.page_content,
+                    "source": src_path
+                })
+
+        import json
 
         # ✅ Lưu message mới vào PostgreSQL kèm session_id
         message = Message(
             question=request.question,
             answer=answer,
-            sources="[]",
+            sources=json.dumps(sources),
             session_id=session_id,
             user_id=getattr(request, "user_id", None),  # nếu có auth sau này
         )
@@ -51,7 +65,7 @@ class ChatService:
 
         return ChatResponse(
             answer=answer,
-            sources=[],
+            sources=sources,
             session_id=session_id,  # ✅ trả về session_id để frontend lưu lại
             created_at=message.created_at,
         )
