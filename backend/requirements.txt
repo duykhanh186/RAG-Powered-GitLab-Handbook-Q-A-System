@@ -20,3 +20,5 @@ celery==5.3.4
 fastembed>=0.3.0
 groq
 tqdm
+minio==7.2.7
+python-multipart==0.0.9
