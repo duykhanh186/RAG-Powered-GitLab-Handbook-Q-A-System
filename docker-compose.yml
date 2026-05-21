@@ -34,6 +34,24 @@ services:
       timeout: 5s
       retries: 5
 
+  # ✅ THÊM MỚI: MinIO object storage
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Dashboard
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - ./data/minio:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -47,12 +65,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder-key}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 5s
-      timeout: 5s
-      retries: 24
-      start_period: 60s
+      # ✅ THÊM MỚI
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,10 +76,40 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+      # ✅ THÊM MỚI
+      minio:
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - ./data:/data
       - ./backend_cache:/root/.cache
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/rag_db
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      # ✅ THÊM MỚI
+      MINIO_URL: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      # ✅ THÊM MỚI
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./data:/data
+      - ./backend_cache:/root/.cache
+    command: celery -A app.tasks.ingest_task worker --loglevel=info --concurrency=1
 
   frontend:
     build:

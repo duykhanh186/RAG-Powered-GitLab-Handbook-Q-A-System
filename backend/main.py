@@ -6,11 +6,13 @@ from sqlalchemy import text, inspect
 from app.api.chat import router as chat_router
 from app.api.history import router as history_router
 from app.api.ingest import router as ingest_router
+from app.api.upload import router as upload_router
 from app.core.database import engine, Base
-
-# Import models để Base biết bảng Message, User mà tạo
 from app.models.message import Message  # noqa: F401
 from app.models.user import User        # noqa: F401
+from app.core.minio_client import ensure_bucket
+from ai_engine.vector_db import VectorDBManager
+from app.tasks.ingest_task import ingest_handbook_task
 
 
 def _auto_migrate():
@@ -31,18 +33,32 @@ def _auto_migrate():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Tự động tạo bảng trong Postgres nếu chưa có
-    # Tránh lỗi "Relation does not exist"
+    # Tạo bảng Postgres
     Base.metadata.create_all(bind=engine)
-    # Thêm cột mới nếu bảng đã tồn tại từ trước
-    _auto_migrate()
+    # Khởi tạo MinIO bucket
+    try:
+        ensure_bucket()
+        print("✅ MinIO bucket sẵn sàng")
+    except Exception as e:
+        print(f"⚠️ MinIO chưa sẵn sàng: {e}")
+
+    # Tự động ingest nếu Qdrant rỗng
+    try:
+        db_manager = VectorDBManager()
+        count = db_manager.client.count("gitlab_handbook").count
+        if count == 0:
+            print("⚡ Qdrant rỗng → Đẩy ingest vào background queue...")
+            ingest_handbook_task.delay("/data/handbook")
+            print("✅ Task đã được đẩy vào Celery queue")
+        else:
+            print(f"✅ Qdrant đã có {count} vectors → Bỏ qua ingest")
+    except Exception as e:
+        print(f"⚠️ Lỗi kiểm tra Qdrant: {e}")
+
     yield
 
 
-app = FastAPI(
-    title="RAG Solution - Backend",
-    lifespan=lifespan,
-)
+app = FastAPI(title="RAG Solution - Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,10 +68,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Đăng ký các router
 app.include_router(chat_router)
 app.include_router(history_router)
 app.include_router(ingest_router)
+app.include_router(upload_router)
 
 
 @app.get("/health")
