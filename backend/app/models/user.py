@@ -1,9 +1,9 @@
 # User model
-# HIEPviet lai User model
+# HIEP viet lai User model
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
-
-from app.core.database import Base  # ← import đúng, bỏ declarative_base() riêng
+from sqlalchemy.orm import relationship
+from app.core.database import Base
 
 
 class User(Base):
@@ -13,3 +13,6 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # ✅ THÊM MỚI: relationship với messages
+    messages = relationship("Message", back_populates="user")

@@ -88,7 +88,7 @@ if __name__ == "__main__":
     final_data = processor.process_all()
     
     # GIẢ SỬ BẠN DÙNG db_manager ĐỂ LƯU
-    from backend.ai_engine.vector_db import VectorDBManager
+    from ai_engine.vector_db import VectorDBManager
     db_manager = VectorDBManager()
     
     # CHIA NHỎ ĐỂ NẠP (BATCHING)

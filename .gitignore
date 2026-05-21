@@ -58,3 +58,7 @@ logs/
 # OS
 Thumbs.db
 .DS_Store
+
+# Local AI Model Cache
+backend/local_model_cache/
+backend_cache/

@@ -12,15 +12,15 @@ class MessageBase(BaseModel):
 
 
 class MessageCreate(MessageBase):
-    pass
+    session_id: Optional[str] = None
+    user_id: Optional[int] = None
 
 
 class MessageResponse(MessageBase):
     id: int
+    session_id: Optional[str] = None
+    user_id: Optional[int] = None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
     class Config:
         from_attributes = True  # cho phép đọc từ SQLAlchemy model

@@ -49,7 +49,7 @@ def run_standalone_test():
     for q in queries:
         print(f"\n❓ Câu hỏi: {q}")
         try:
-            answer = rag.ask(q)
+            answer, docs = rag.ask(q)
             print(f"🤖 AI trả lời: {answer}")
         except Exception as e:
             print(f"❌ Lỗi khi hỏi: {e}")

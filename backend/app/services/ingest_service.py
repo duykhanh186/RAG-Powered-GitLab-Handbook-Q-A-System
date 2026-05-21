@@ -1,12 +1,15 @@
 # Ingest service
 # HIEP viet lai Ingest service logic
 from app.schemas.ingest import IngestRequest, IngestResponse
-from ai_engine.vector_db import VectorDB
+from ai_engine.vector_db import VectorDBManager
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 
 
 class IngestService:
     def __init__(self):
-        self.vector_db = VectorDB()
+        self.vector_db = VectorDBManager()
+        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
 
     def ingest_document(self, request: IngestRequest) -> IngestResponse:
         try:
@@ -23,11 +26,13 @@ class IngestService:
                     message="Không có nội dung để index",
                 )
 
+            # Phân tách văn bản
+            chunks = self.text_splitter.split_text(content)
+            documents = [Document(page_content=chunk, metadata=request.metadata or {}) for chunk in chunks]
+
             # Đưa vào vector DB (Qdrant)
-            chunks_count = self.vector_db.add_documents(
-                content=content,
-                metadata=request.metadata or {},
-            )
+            self.vector_db.add_documents(documents)
+            chunks_count = len(documents)
 
             return IngestResponse(
                 success=True,

@@ -3,9 +3,9 @@ import sys
 from pathlib import Path
 from groq import Groq
 from dotenv import load_dotenv
+from typing import List, Dict
 
 # Tìm đường dẫn tuyệt đối đến file .env
-# Giả sử file .env nằm ở thư mục gốc THAI-Group-Skibidi
 env_path = Path(__file__).resolve().parent.parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
@@ -13,20 +13,9 @@ load_dotenv(dotenv_path=env_path)
 root_path = Path(__file__).resolve().parent.parent.parent
 if str(root_path) not in sys.path:
     sys.path.append(str(root_path))
-import sys
-from pathlib import Path
-from groq import Groq
-from dotenv import load_dotenv # Quan trọng: Để đọc file .env
 
-# Load các biến môi trường từ .env (như GROQ_API_KEY)
-load_dotenv()
+from ai_engine.vector_db import VectorDBManager
 
-# Fix đường dẫn để import được VectorDBManager
-root_path = Path(__file__).resolve().parent.parent.parent
-if str(root_path) not in sys.path:
-    sys.path.append(str(root_path))
-
-from backend.ai_engine.vector_db import VectorDBManager
 
 class RAGChain:
     def __init__(self, db_manager=None):
@@ -35,15 +24,15 @@ class RAGChain:
             self.db_manager = db_manager
         else:
             self.db_manager = VectorDBManager()
-            
+
         self.vector_store = self.db_manager.get_vector_store()
-        
+
         # 2. Tạo Retriever để tìm 8 đoạn văn bản liên quan nhất
         self.retriever = self.vector_store.as_retriever(
             search_type="similarity",
-            search_kwargs={"k": 8} 
+            search_kwargs={"k": 8}
         )
-        
+
     def _format_docs(self, docs):
         """Làm sạch dữ liệu context để AI dễ đọc"""
         formatted_context = []
@@ -53,39 +42,63 @@ class RAGChain:
             formatted_context.append(f"--- Đoạn {i+1} (Nguồn: {source}) ---\n{content}")
         return "\n\n".join(formatted_context)
 
-    def ask(self, question: str):
+    def _format_chat_history(self, chat_history: List[Dict]) -> List[Dict]:
+        """
+        Chuyển lịch sử hội thoại sang định dạng Groq messages.
+        chat_history: [{"question": "...", "answer": "..."}, ...]
+        """
+        messages = []
+        for turn in chat_history:
+            messages.append({"role": "user", "content": turn["question"]})
+            messages.append({"role": "assistant", "content": turn["answer"]})
+        return messages
+
+    def ask(self, question: str, chat_history: List[Dict] = []):
         """
         DÙNG GROQ ĐỂ GENERATION (PHÁT NGÔN)
+        chat_history: lịch sử hội thoại từ ChatService, dạng:
+            [{"question": "...", "answer": "..."}, ...]
         """
         try:
             # 1. Tìm tài liệu liên quan từ Database (Local Embedding)
             docs = self.retriever.invoke(question)
             context = self._format_docs(docs)
-            
+
             # 2. Khởi tạo Client Groq
             api_key = os.getenv("GROQ_API_KEY")
             if not api_key:
-                return "Lỗi: Không tìm thấy GROQ_API_KEY trong file .env"
-                
+                return "Lỗi: Không tìm thấy GROQ_API_KEY trong file .env", []
+
             client = Groq(api_key=api_key)
-            
-            # 3. Gọi model Llama 3 (Cực mạnh và ổn định)
+
+            # 3. Build messages: system → lịch sử → câu hỏi mới
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "Bạn là chuyên gia về GitLab Handbook. "
+                        "Hãy trả lời bằng TIẾNG VIỆT dựa trên ngữ cảnh được cung cấp sau đây. "
+                        "Nếu câu hỏi liên quan đến lịch sử hội thoại, hãy dùng context đó để trả lời nhất quán.\n\n"
+                        f"{context}"
+                    )
+                }
+            ]
+
+            # ✅ Thêm lịch sử hội thoại vào giữa (tối đa 10 lượt gần nhất)
+            if chat_history:
+                messages.extend(self._format_chat_history(chat_history[-10:]))
+
+            # ✅ Thêm câu hỏi hiện tại
+            messages.append({"role": "user", "content": question})
+
+            # 4. Gọi model Llama 3
             chat_completion = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": f"Bạn là chuyên gia về GitLab Handbook. Hãy trả lời bằng TIẾNG VIỆT dựa trên ngữ cảnh được cung cấp sau đây:\n\n{context}"
-                    },
-                    {
-                        "role": "user", 
-                        "content": question
-                    }
-                ],
+                messages=messages,
                 model="llama-3.3-70b-versatile",
                 temperature=0.2
             )
-            
-            return chat_completion.choices[0].message.content
+
+            return chat_completion.choices[0].message.content, docs
 
         except Exception as e:
-            return f"Lỗi hệ thống Groq: {str(e)}"
+            return f"Lỗi hệ thống Groq: {str(e)}", []

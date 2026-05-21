@@ -763,3 +763,367 @@ body {
   background: #e8e8f0;
   color: #111111;
 }
+/* ===== LIGHT MODE BỔ SUNG ===== */
+
+/* Nền tổng thể */
+.app.light {
+  background: #f5f5f5;
+  color: #111111;
+}
+
+/* Main content */
+.app.light .main-content {
+  background: #f5f5f5;
+}
+
+/* Chat container */
+.app.light .chat-container {
+  background: #f5f5f5;
+}
+
+/* Chat header */
+.app.light .chat-header {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.app.light .chat-header h2 {
+  color: #111111;
+}
+
+.app.light .chat-header p {
+  color: #666666;
+}
+
+/* Chat input area */
+.app.light .chat-input-area {
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Chữ gợi ý */
+.app.light .chat-empty {
+  color: #444444;
+}
+
+.app.light .chat-empty h1 {
+  color: #111111;
+  -webkit-text-stroke: 2px #111111;
+  text-shadow: 2px 2px 0px #111111;
+}
+
+.app.light .chat-empty p {
+  color: #555555;
+}
+
+/* Dashboard */
+.app.light .dashboard-container {
+  background: #f5f5f5;
+}
+
+.app.light .dashboard-header h2 {
+  color: #111111;
+}
+
+.app.light .dashboard-header p {
+  color: #666666;
+}
+
+/* Card */
+.app.light .card {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+}
+
+.app.light .card h3 {
+  color: #111111;
+}
+
+.app.light .card > p {
+  color: #666666;
+}
+
+/* Status rows */
+.app.light .status-row {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.app.light .status-label {
+  color: #666666;
+}
+
+.app.light .status-value {
+  color: #111111;
+}
+
+/* Refresh button */
+.app.light .refresh-btn {
+  border-color: #e0e0e0;
+  color: #666666;
+}
+
+/* Nav links */
+.app.light .nav-link {
+  color: #555555;
+}
+
+.app.light .nav-link:hover {
+  background: #e0e0e0;
+  color: #111111;
+}
+ 
+/* ============================================================
+   HISTORY LIST — danh sách hội thoại trong sidebar
+   ============================================================ */
+ 
+/* Vùng scroll chứa toàn bộ history items */
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+ 
+/* Scrollbar mảnh cho history list */
+.history-list::-webkit-scrollbar       { width: 3px; }
+.history-list::-webkit-scrollbar-track { background: transparent; }
+.history-list::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+ 
+/* Trạng thái trống */
+.history-empty {
+  text-align: center;
+  padding: 24px 8px;
+  color: #555555;
+  font-size: 13px;
+  line-height: 1.6;
+}
+ 
+/* ── Mỗi item history ── */
+.history-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  min-height: 52px;
+  /* Actions ẩn mặc định */
+}
+ 
+.history-item:hover {
+  background: #1e1e2e;
+}
+ 
+/* Item đang active */
+.history-item.active {
+  background: #2a2a4a;
+}
+ 
+.history-item.active .history-title {
+  color: #ffffff;
+}
+ 
+/* Phần text: title + time */
+.history-item-body {
+  flex: 1;
+  min-width: 0; /* Cho phép text bị cắt */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+ 
+.history-title {
+  font-size: 13px;
+  color: #cccccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  transition: color 0.15s;
+}
+ 
+.history-item:hover .history-title {
+  color: #ffffff;
+}
+ 
+.history-time {
+  font-size: 11px;
+  color: #555555;
+}
+ 
+.history-item.active .history-time {
+  color: #888888;
+}
+ 
+/* ── Action buttons (edit / delete) ── */
+/* Ẩn mặc định, hiện khi hover item */
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+ 
+.history-item:hover .history-actions,
+.history-item.active .history-actions {
+  opacity: 1;
+}
+ 
+/* Nút nhỏ edit/delete */
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: #888888;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+ 
+.action-btn:hover {
+  background: #3a3a5a;
+  color: #ffffff;
+}
+ 
+.action-btn.danger:hover {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+ 
+/* Confirm delete — 2 nút nhỏ cạnh nhau */
+.delete-confirm {
+  display: flex;
+  gap: 2px;
+}
+ 
+/* ── Rename input ── */
+.rename-input {
+  width: 100%;
+  background: #0f0f1a;
+  border: 1px solid #fc6d26;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 13px;
+  padding: 4px 8px;
+  outline: none;
+}
+ 
+/* ── Search clear button ── */
+.search-clear {
+  background: transparent;
+  border: none;
+  color: #666666;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+ 
+.search-clear:hover {
+  color: #ffffff;
+}
+ 
+/* ── Màn hình "chưa chọn conversation" ── */
+.chat-no-conv {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: #555555;
+  text-align: center;
+  padding: 32px;
+}
+ 
+.no-conv-icon {
+  font-size: 48px;
+  opacity: 0.4;
+}
+ 
+.chat-no-conv h3 {
+  font-size: 17px;
+  color: #aaaaaa;
+}
+ 
+.chat-no-conv p {
+  font-size: 14px;
+  color: #666666;
+}
+ 
+.chat-no-conv strong {
+  color: #cccccc;
+}
+ 
+.no-conv-btn {
+  margin-top: 8px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: #fc6d26;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+ 
+.no-conv-btn:hover {
+  background: #e55d1a;
+}
+ 
+/* ── Timestamp tin nhắn ── */
+.message-timestamp {
+  font-size: 11px;
+  color: #555555;
+  margin-top: 4px;
+  padding: 0 2px;
+}
+ 
+.message.user .message-timestamp {
+  text-align: right;
+}
+ 
+ 
+/* ============================================================
+   LIGHT MODE — bổ sung cho history
+   ============================================================ */
+ 
+.app.light .history-title       { color: #444444; }
+.app.light .history-time        { color: #999999; }
+.app.light .history-empty       { color: #999999; }
+ 
+.app.light .history-item:hover  { background: #e8e8e8; }
+.app.light .history-item.active { background: #dde0ff; }
+ 
+.app.light .history-item.active .history-title { color: #111111; }
+.app.light .history-item:hover .history-title  { color: #111111; }
+ 
+.app.light .action-btn          { color: #999999; }
+.app.light .action-btn:hover    { background: #e0e0e0; color: #333333; }
+ 
+.app.light .rename-input {
+  background: #ffffff;
+  border-color: #fc6d26;
+  color: #111111;
+}
+ 
+.app.light .search-clear        { color: #999999; }
+.app.light .search-clear:hover  { color: #333333; }
+ 
+.app.light .chat-no-conv h3     { color: #444444; }
+.app.light .chat-no-conv p      { color: #888888; }
+.app.light .chat-no-conv strong { color: #333333; }
+ 
+.app.light .message-timestamp   { color: #aaaaaa; }

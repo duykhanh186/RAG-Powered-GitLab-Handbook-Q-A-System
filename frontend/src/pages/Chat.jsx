@@ -1,201 +1,228 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { chatAPI } from '../services/api';
-
-function Chat() {
-  // Danh sách tin nhắn, mỗi tin có dạng: { role: 'user'|'bot', content: '...', sources: [] }
-  const [messages, setMessages] = useState([]);
-
-  // Nội dung người dùng đang gõ
-  const [input, setInput] = useState('');
-
-  // Đang chờ phản hồi từ backend hay không
-  const [loading, setLoading] = useState(false);
-
-  // Dùng để tự động cuộn xuống tin nhắn mới nhất
-  const bottomRef = useRef(null);
-
-  // Mỗi khi messages thay đổi, cuộn xuống cuối
+ 
+function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreateNewChat }) {
+ 
+  const [messages, setMessages]   = useState(initialMessages);
+  const [input, setInput]         = useState('');
+  const [loading, setLoading]     = useState(false);
+  const bottomRef                 = useRef(null);
+  const textareaRef               = useRef(null);
+ 
+  // ── Khi đổi conversation (key thay đổi) reset messages ──────
+  useEffect(() => {
+    setMessages(initialMessages);
+    setInput('');
+    setLoading(false);
+  }, [conversationId]);
+ 
+  // ── Auto scroll xuống cuối mỗi khi messages thay đổi ────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Hàm gửi tin nhắn
+  }, [messages, loading]);
+ 
+  // ── Auto resize textarea theo nội dung ──────────────────────
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+  }, [input]);
+ 
+  // ── Gửi tin nhắn ────────────────────────────────────────────
   const handleSend = async () => {
-    // Không gửi nếu input trống hoặc đang loading
-    if (!input.trim() || loading) return;
-
-    // Thêm tin nhắn của user vào danh sách
-    const userMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
-
-    // Xóa input và bắt đầu loading
+    if (!input.trim() || loading || !conversationId) return;
+ 
+    const userMsg = {
+      role:      'user',
+      content:   input.trim(),
+      timestamp: new Date().toISOString(),
+    };
+ 
+    const nextMessages = [...messages, userMsg];
+    setMessages(nextMessages);
     setInput('');
     setLoading(true);
-
+ 
+    // Lưu ngay sau khi user gửi (để title cũng cập nhật ngay)
+    onMessagesUpdate?.(conversationId, nextMessages);
+ 
     try {
-      // Gọi API backend
-      const response = await chatAPI.sendMessage(input);
-
-      // Lấy answer và sources từ response
-      // Thử cả .answer và .message phòng backend đặt tên khác
-      const answer = response.data?.answer
-        || response.data?.message
-        || 'Không có phản hồi từ server';
-      const sources = response.data?.sources || [];
-
-      // Thêm tin nhắn bot vào danh sách
-      const botMessage = { role: 'bot', content: answer, sources };
-      setMessages(prev => [...prev, botMessage]);
-
-    } catch (error) {
-      // Nếu lỗi thì hiện thông báo lỗi thay vì crash app
-      const errorMessage = {
-        role: 'bot',
-        content: 'Lỗi kết nối backend. Vui lòng kiểm tra lại server.',
-        sources: []
+      const response = await chatAPI.sendMessage(userMsg.content);
+      const answer   = response.data?.answer || 'Không có phản hồi từ server.';
+      const sources  = response.data?.sources || [];
+ 
+      const botMsg = {
+        role:      'assistant',
+        content:   answer,
+        sources,
+        timestamp: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+ 
+      const finalMessages = [...nextMessages, botMsg];
+      setMessages(finalMessages);
+      onMessagesUpdate?.(conversationId, finalMessages);
+ 
+    } catch {
+      const errMsg = {
+        role:      'assistant',
+        content:   'Lỗi kết nối backend. Vui lòng kiểm tra lại server.',
+        sources:   [],
+        timestamp: new Date().toISOString(),
+      };
+      const finalMessages = [...nextMessages, errMsg];
+      setMessages(finalMessages);
+      onMessagesUpdate?.(conversationId, finalMessages);
     } finally {
-      // Dù thành công hay lỗi đều tắt loading
       setLoading(false);
     }
   };
-
-  // Bấm Enter để gửi, Shift+Enter để xuống dòng
+ 
+  // ── Enter gửi, Shift+Enter xuống dòng ───────────────────────
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
-
-  // Khi bấm vào câu hỏi gợi ý thì điền vào input
+ 
+  // ── Click gợi ý ─────────────────────────────────────────────
   const handleSuggestion = (question) => {
     setInput(question);
+    textareaRef.current?.focus();
   };
-
+ 
+  // ── Chưa chọn conversation nào ──────────────────────────────
+  if (!conversationId) {
+    return (
+      <div className="chat-container">
+        <div className="chat-no-conv">
+          <div className="no-conv-icon">💬</div>
+          <h3>Chưa có cuộc hội thoại nào</h3>
+          <p>Nhấn <strong>Đoạn chat mới</strong> để bắt đầu</p>
+          <button className="no-conv-btn" onClick={onCreateNewChat}>
+            ✏️ Bắt đầu chat
+          </button>
+        </div>
+      </div>
+    );
+  }
+ 
+  // ─── Render ─────────────────────────────────────────────────
   return (
     <div className="chat-container">
-
-      {/* ===== HEADER ===== */}
+ 
+      {/* HEADER */}
       <div className="chat-header">
         <h2>Hỏi đáp về GitLab Handbook</h2>
         <p>Đặt câu hỏi về nội dung Handbook GitLab</p>
       </div>
-
-      {/* ===== KHU VỰC TIN NHẮN ===== */}
+ 
+      {/* KHU VỰC TIN NHẮN */}
       <div className="chat-messages">
-
-        {/* Hiện gợi ý khi chưa có tin nhắn nào */}
+ 
+        {/* Màn hình trống */}
         {messages.length === 0 && (
           <div className="chat-empty">
             <h1>SKIBIDI CHAT</h1>
             <p>Xin chào! Hãy đặt câu hỏi về GitLab Handbook</p>
-
-            {/* Các câu hỏi gợi ý */}
             <div className="suggestions">
               {[
-                'GitLab values la gi?',
-                'Quy trinh onboarding?',
-                'Remote work policy?'
-              ].map(question => (
-                <button
-                  key={question}
-                  className="suggestion-btn"
-                  onClick={() => handleSuggestion(question)}
-                >
-                  {question}
+                'GitLab values là gì?',
+                'Quy trình onboarding?',
+                'Remote work policy?',
+              ].map(q => (
+                <button key={q} className="suggestion-btn" onClick={() => handleSuggestion(q)}>
+                  {q}
                 </button>
               ))}
             </div>
           </div>
         )}
-
-        {/* Render từng tin nhắn */}
-        {messages.map((message, index) => (
-          <div key={index} className={`message ${message.role}`}>
-
-            {/* Avatar user hoặc bot */}
+ 
+        {/* Danh sách tin nhắn */}
+        {messages.map((msg, i) => (
+          <div key={i} className={`message ${msg.role === 'user' ? 'user' : 'bot'}`}>
+ 
             <div className="message-avatar">
-              {/* icon user hoặc bot */}
+              {msg.role === 'user' ? '👤' : '🦊'}
             </div>
-
+ 
             <div className="message-body">
-              {/* Nội dung tin nhắn */}
-              <div className="message-content">
-                {message.content}
-              </div>
-
-              {/* Hiện sources nếu có */}
-              {message.sources && message.sources.length > 0 && (
+              <div className="message-content">{msg.content}</div>
+ 
+              {/* Timestamp */}
+              {msg.timestamp && (
+                <div className="message-timestamp">
+                  {new Date(msg.timestamp).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit', minute: '2-digit'
+                  })}
+                </div>
+              )}
+ 
+              {/* Sources */}
+              {msg.sources && msg.sources.length > 0 && (
                 <div className="message-sources">
-                  <span>Nguon tham khao:</span>
-                  {message.sources.map((source, i) => (
-                    <a
-                      key={i}
-                      href={source}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="source-link"
-                    >
-                      {source}
-                    </a>
-                  ))}
+                  <span>Nguồn tham khảo:</span>
+                  {msg.sources.map((source, j) => {
+                    const url  = typeof source === 'object' ? source.source : source;
+                    const text = typeof source === 'object'
+                      ? (source.source ? source.source.split('/').pop() : `Nguồn ${j + 1}`)
+                      : source;
+                    return (
+                      <a key={j} href={url} target="_blank" rel="noreferrer" className="source-link">
+                        {text}
+                      </a>
+                    );
+                  })}
                 </div>
               )}
             </div>
-
+ 
           </div>
         ))}
-
-        {/* Hiện loading khi đang chờ bot trả lời */}
+ 
+        {/* Typing indicator */}
         {loading && (
           <div className="message bot">
-            <div className="message-avatar">
-              {/* icon bot */}
-            </div>
+            <div className="message-avatar">🦊</div>
             <div className="message-body">
-              {/* 3 chấm nhảy */}
               <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+                <span /><span /><span />
               </div>
             </div>
           </div>
         )}
-
-        {/* Điểm neo để cuộn xuống cuối */}
+ 
         <div ref={bottomRef} />
-
       </div>
-
-      {/* ===== KHU VỰC NHẬP TIN NHẮN ===== */}
+ 
+      {/* KHU VỰC NHẬP */}
       <div className="chat-input-area">
-
         <textarea
+          ref={textareaRef}
           className="chat-input"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Nhập câu hỏi... (Enter để gửi, Shift+Enter xuống dòng)"
+          placeholder="Nhập câu hỏi… (Enter gửi, Shift+Enter xuống dòng)"
           rows={1}
           disabled={loading}
         />
-
         <button
           className="send-btn"
           onClick={handleSend}
-          // Disable khi đang loading hoặc input trống
           disabled={loading || !input.trim()}
         >
-           <span style={{ fontSize: '32px', lineHeight: 1 }}>⬆</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
         </button>
-
       </div>
-
+ 
     </div>
   );
 }
-
+ 
 export default Chat;
