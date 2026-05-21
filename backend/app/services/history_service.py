@@ -1,11 +1,14 @@
 # History service
-# HIEP viet lai History service logic
+# HIEP viet lai History service logic (Đã chuyển đổi múi giờ sang GMT+7 và sắp xếp tin nhắn mới lên đầu)
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
+from datetime import timezone, timedelta  # 🔹 Thêm thư viện này để xử lý múi giờ
 from app.models.message import Message
 from app.schemas.message import MessageResponse
 
+# Định nghĩa múi giờ Việt Nam (GMT+7)
+VIETNAM_TZ = timezone(timedelta(hours=7))
 
 class HistoryService:
     # Lấy danh sách các đoạn chat (Session) để hiển thị lên thanh Sidebar bên trái
@@ -46,16 +49,22 @@ class HistoryService:
         )
 
         # Trả về danh sách dạng dict để frontend dễ map [{session_id, title, last_active}, ...]
-        return [
-            {
+        result = []
+        for s in sessions:
+            last_active_vn = None
+            if s.last_active:
+                # Ép kiểu datetime từ DB hiểu là UTC rồi chuyển thành giờ VN (GMT+7)
+                last_active_vn = s.last_active.replace(tzinfo=timezone.utc).astimezone(VIETNAM_TZ)
+            
+            result.append({
                 "session_id": s.session_id,
                 "title": s.title if s.title else "Đoạn chat mới",
-                "last_active": s.last_active.isoformat() if s.last_active else None
-            }
-            for s in sessions
-        ]
+                "last_active": last_active_vn.isoformat() if last_active_vn else None
+            })
+            
+        return result
 
-    # 🔹 HÀM CŨ: Giữ nguyên để lấy chi tiết tin nhắn khi bấm vào một đoạn chat cụ thể
+    # 🔹 HÀM ĐÃ SỬA: Lấy chi tiết tin nhắn và đưa tin nhắn mới nhất lên đầu
     def get_history(
         self,
         db: Session,
@@ -74,14 +83,20 @@ class HistoryService:
 
         messages = (
             query
-            .order_by(Message.created_at.asc())  # Giữ asc để khi bấm vào chat, tin nhắn hiện từ cũ đến mới (chuẩn dòng thời gian)
+            .order_by(Message.created_at.desc())  # desc() ở đây để đưa tin nhắn mới lên đầu
             .offset(offset)
             .limit(limit)
             .all()
         )
+        
+        # Chuyển đổi trường created_at của từng object sang giờ VN trước khi đưa qua Pydantic
+        for m in messages:
+            if m.created_at:
+                m.created_at = m.created_at.replace(tzinfo=timezone.utc).astimezone(VIETNAM_TZ)
+
         return [MessageResponse.from_orm(m) for m in messages]
 
-    # 🔹 HÀM CŨ: Giữ nguyên để xóa lịch sử
+    # Xóa lịch sử
     def delete_history(
         self,
         db: Session,
