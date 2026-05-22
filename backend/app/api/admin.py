@@ -5,6 +5,8 @@ from sqlalchemy import func
 from typing import Optional
 from pydantic import BaseModel
 import time
+import json
+import os
 from app.core.database import get_db
 from app.models.user import User
 from app.models.message import Message
@@ -48,16 +50,47 @@ def _get_vdb():
     return _vdb_instance
 
 
-# ─── Cache cho Qdrant info (TTL 30 giây, tránh gọi lại mỗi request) ──────────
-_qdrant_cache: dict = {"data": None, "ts": 0.0}
+# ─── Kết nối Redis dùng chung cho Cache ───────────────────────
+_redis_client = None
+
+def _get_redis_client():
+    global _redis_client
+    if _redis_client is None:
+        try:
+            import redis as _redis
+            redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
+            _redis_client = _redis.from_url(redis_url, socket_connect_timeout=2, decode_responses=True)
+        except Exception as e:
+            print(f"[!] Cảnh báo: Không thể khởi tạo Redis client: {str(e)}")
+            _redis_client = None
+    return _redis_client
+
+
+# ─── Cache cho Qdrant info (Dùng Redis, Fallback sang bộ nhớ cục bộ) ─────────
+_qdrant_cache_fallback: dict = {"data": None, "ts": 0.0}
 _QDRANT_CACHE_TTL = 30  # giây
 
 def _get_qdrant_info():
-    global _vdb_instance, _qdrant_cache
-    now = time.monotonic()
-    # Trả về cache nếu còn hiệu lực
-    if _qdrant_cache["data"] is not None and (now - _qdrant_cache["ts"]) < _QDRANT_CACHE_TTL:
-        return _qdrant_cache["data"]
+    global _vdb_instance, _qdrant_cache_fallback
+    
+    # 1. Thử dùng Redis Cache trước (Đồng bộ đa workers)
+    r = _get_redis_client()
+    if r:
+        try:
+            cached_data = r.get("qdrant_dashboard_cache")
+            if cached_data:
+                print("[*] RETURNING QDRANT INFO FROM REDIS CACHE")
+                return json.loads(cached_data)
+        except Exception as re:
+            print(f"[!] Cảnh báo: Lỗi đọc cache từ Redis: {str(re)}")
+    else:
+        # 2. Fallback: Dùng cache bộ nhớ cục bộ nếu Redis không khả dụng
+        now = time.monotonic()
+        if _qdrant_cache_fallback["data"] is not None and (now - _qdrant_cache_fallback["ts"]) < _QDRANT_CACHE_TTL:
+            print(f"[*] RETURNING QDRANT INFO FROM LOCAL FALLBACK CACHE (age: {now - _qdrant_cache_fallback['ts']:.1f}s)")
+            return _qdrant_cache_fallback["data"]
+    
+    print("[*] FETCHING FRESH QDRANT INFO FROM SERVER...")
     try:
         vdb = _get_vdb()
         info = vdb.client.get_collection(vdb.collection_name)
@@ -74,9 +107,36 @@ def _get_qdrant_info():
             "collection_name": "unknown",
             "detail": str(e),
         }
-    _qdrant_cache["data"] = result
-    _qdrant_cache["ts"] = now
+        
+    # 3. Ghi dữ liệu mới vào cache
+    if r:
+        try:
+            r.setex("qdrant_dashboard_cache", _QDRANT_CACHE_TTL, json.dumps(result))
+            print("[*] SAVED FRESH QDRANT INFO TO REDIS CACHE")
+        except Exception as re:
+            print(f"[!] Cảnh báo: Lỗi ghi cache vào Redis: {str(re)}")
+    else:
+        _qdrant_cache_fallback["data"] = result
+        _qdrant_cache_fallback["ts"] = time.monotonic()
+        
     return result
+
+
+def invalidate_qdrant_cache():
+    global _qdrant_cache_fallback
+    print("[*] INVALIDATING QDRANT CACHE")
+    
+    # 1. Xóa cache trên Redis (Cập nhật tức khắc cho tất cả workers)
+    r = _get_redis_client()
+    if r:
+        try:
+            r.delete("qdrant_dashboard_cache")
+            print("[*] DELETED QDRANT CACHE FROM REDIS")
+        except Exception as re:
+            print(f"[!] Cảnh báo: Lỗi xóa cache trên Redis: {str(re)}")
+            
+    # 2. Xóa cache dự phòng cục bộ
+    _qdrant_cache_fallback = {"data": None, "ts": 0.0}
 
 
 # ─── Helper: kiểm tra Redis nhanh ─────────────────────────────
@@ -166,26 +226,68 @@ def get_documents(db: Session = Depends(get_db)):
 
 @router.post("/documents")
 async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Cổng kết nối tiếp nhận file JSON từ Admin."""
-    if not file.filename.lower().endswith(".json"):
-        raise HTTPException(status_code=400, detail="Hệ thống chỉ chấp nhận định dạng file .json")
+    """Cổng kết nối tiếp nhận file từ Admin (JSON, TXT, MD, PDF, DOCX)."""
+    filename_lower = file.filename.lower()
+    allowed_exts = [".json", ".txt", ".md", ".pdf", ".docx"]
+    if not any(filename_lower.endswith(ext) for ext in allowed_exts):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hệ thống chỉ chấp nhận định dạng file: {', '.join(allowed_exts)}"
+        )
     try:
         service = IngestService()
-        return await service.ingest_document(file, db)
+        res = await service.ingest_document(file, db)
+        invalidate_qdrant_cache()
+        return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/documents/{doc_id}")
 def delete_document(doc_id: int, db: Session = Depends(get_db)):
-    """Xóa bỏ tài liệu ra khỏi hệ thống."""
+    """Xóa bỏ tài liệu ra khỏi hệ thống (cả Postgres và Qdrant Vector DB)."""
     try:
         doc = db.query(DBDocument).filter(DBDocument.id == doc_id).first()
         if not doc:
             raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
         
         filename = doc.filename
+        minio_obj_name = getattr(doc, "minio_object_name", None)
+        
+        # 1. Xóa file gốc vật lý khỏi MinIO Object Storage (nếu có)
+        if minio_obj_name:
+            try:
+                from app.core.minio_client import ensure_bucket, BUCKET_NAME
+                client = ensure_bucket()
+                client.remove_object(BUCKET_NAME, minio_obj_name)
+                print(f"[*] Đã xóa thành công file gốc khỏi MinIO: {minio_obj_name}")
+            except Exception as me:
+                print(f"[!] Cảnh báo: Lỗi khi xóa file gốc khỏi MinIO cho doc_id {doc_id}: {str(me)}")
+        
+        # 2. Xóa các vectors liên quan đến doc_id này trong Qdrant Vector DB
+        try:
+            from ai_engine.vector_db import VectorDBManager
+            from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+            
+            vdb = VectorDBManager()  # Khởi tạo mới mỗi lần để đảm bảo an toàn kết nối (thread-safety)
+            vdb.client.delete(
+                collection_name=vdb.collection_name,
+                points_selector=Filter(
+                    must=[
+                        FieldCondition(
+                            key="metadata.doc_id",
+                            match=MatchValue(value=doc_id)
+                        )
+                    ]
+                )
+            )
+            print(f"[*] Đã xóa thành công vectors khỏi Qdrant cho doc_id: {doc_id}")
+        except Exception as qe:
+            print(f"[!] Cảnh báo: Lỗi khi xóa vectors trong Qdrant cho doc_id {doc_id}: {str(qe)}")
+        
+        # 3. Xóa bản ghi trong database PostgreSQL
         db.delete(doc)
         db.commit()
+        invalidate_qdrant_cache()
         return {"success": True, "message": f"Đã xóa thành công tài liệu {filename}"}
     except HTTPException:
         raise
@@ -279,18 +381,21 @@ def update_user_role(user_id: int, body: UserRoleUpdate, db: Session = Depends(g
 @router.get("/settings")
 def get_settings(db: Session = Depends(get_db)):
     try:
-        from app.core.config import settings
+        from app.core.config import settings, read_rag_settings
         qdrant = _get_qdrant_info()          # dùng cache 30s
         redis_status = _get_redis_status()   # dùng cache 30s
         total_users = db.query(func.count(User.id)).scalar() or 0
         total_conversations = db.query(func.count(func.distinct(Message.session_id))).scalar() or 0
 
+        # Tải cấu hình RAG động
+        rag_settings = read_rag_settings()
+
         return {
             "groq_api_key_set":   bool(getattr(settings, "GROQ_API_KEY", "")),
             "openai_api_key_set": bool(getattr(settings, "OPENAI_API_KEY", "")),
-            "embedding_model":    getattr(settings, "EMBEDDING_MODEL", ""),
-            "chunk_size":         512,
-            "chunk_overlap":      50,
+            "embedding_model":    rag_settings["embedding_model"],
+            "chunk_size":         rag_settings["chunk_size"],
+            "chunk_overlap":      rag_settings["chunk_overlap"],
             "qdrant_status":      qdrant["status"],
             "total_vectors":      qdrant["total_vectors"],
             "collection_name":    qdrant["collection_name"],
@@ -308,4 +413,16 @@ def get_settings(db: Session = Depends(get_db)):
 
 @router.put("/settings")
 def update_settings(body: SettingsUpdate):
-    return {"success": True}
+    try:
+        from app.core.config import save_rag_settings, read_rag_settings
+        current = read_rag_settings()
+        chunk_size = body.chunk_size if body.chunk_size is not None else current["chunk_size"]
+        chunk_overlap = body.chunk_overlap if body.chunk_overlap is not None else current["chunk_overlap"]
+        embedding_model = body.embedding_model if body.embedding_model is not None else current["embedding_model"]
+        
+        success = save_rag_settings(chunk_size, chunk_overlap, embedding_model)
+        if not success:
+            raise HTTPException(status_code=500, detail="Không thể lưu tệp cấu hình RAG.")
+        return {"success": True, "message": "Đã cập nhật cấu hình RAG thành công!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

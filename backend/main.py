@@ -43,6 +43,14 @@ def _auto_migrate():
                 conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR DEFAULT 'user'"))
             conn.commit()
 
+    # Đồng bộ hóa cấu trúc cho bảng tài liệu (documents)
+    if "documents" in inspector.get_table_names():
+        existing_doc_cols = {col["name"] for col in inspector.get_columns("documents")}
+        with engine.connect() as conn:
+            if "minio_object_name" not in existing_doc_cols:
+                conn.execute(text("ALTER TABLE documents ADD COLUMN minio_object_name VARCHAR"))
+            conn.commit()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

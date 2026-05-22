@@ -12,7 +12,7 @@ export const apiClient = axios.create({
 
 // ===== CHAT API =====
 export const chatAPI = {
-  sendMessage: (message) => apiClient.post('/chat/', { question: message }),
+  sendMessage: (message, sessionId) => apiClient.post('/chat/', { question: message, session_id: sessionId }),
   getHistory: () => apiClient.get('/chat/history'),
 };
 

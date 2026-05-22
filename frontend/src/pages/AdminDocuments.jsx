@@ -3,7 +3,7 @@ import { adminAPI } from '../services/api';
 import StatusBadge from '../components/admin/StatusBadge';
 import ConfirmModal from '../components/admin/ConfirmModal';
 
-const ACCEPTED = ['.pdf', '.docx', '.txt'];
+const ACCEPTED = ['.pdf', '.docx', '.txt', '.md', '.json'];
 
 const formatDate = (iso) => {
   if (!iso) return 'N/A';
@@ -66,7 +66,7 @@ function UploadZone({ onFiles }) {
       <p className="upload-zone__text">
         Kéo thả file vào đây hoặc <span className="upload-zone__link">chọn file</span>
       </p>
-      <p className="upload-zone__hint">Hỗ trợ: PDF, DOCX, TXT</p>
+      <p className="upload-zone__hint">Hỗ trợ: PDF, DOCX, TXT, MD, JSON</p>
     </div>
   );
 }

@@ -7,6 +7,7 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String, index=True, nullable=False)
+    minio_object_name = Column(String, nullable=True)
     file_size = Column(Integer, nullable=True)
     chunk_count = Column(Integer, default=0)
     status = Column(String, default="processing")  # processing, embedded, failed
