@@ -1,0 +1,45 @@
+[33m4344f5c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mlhoang[m[33m, [m[1;31morigin/lhoang[m[33m)[m HEAD@{0}: checkout: moving from khanh to lhoang
+[33m5687af9[m[33m ([m[1;31morigin/khanh[m[33m, [m[1;32mkhanh[m[33m)[m HEAD@{1}: pull origin khanh: Fast-forward
+[33me17c731[m HEAD@{2}: checkout: moving from lhoang to khanh
+[33m4344f5c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mlhoang[m[33m, [m[1;31morigin/lhoang[m[33m)[m HEAD@{3}: reset: moving to HEAD
+[33m4344f5c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mlhoang[m[33m, [m[1;31morigin/lhoang[m[33m)[m HEAD@{4}: pull origin khanh: updating HEAD
+[33m4344f5c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mlhoang[m[33m, [m[1;31morigin/lhoang[m[33m)[m HEAD@{5}: commit: update lich su
+[33me809317[m HEAD@{6}: commit: update
+[33mfb9d624[m HEAD@{7}: pull origin khanh: Fast-forward
+[33md3a7b6f[m HEAD@{8}: pull origin khanh: Fast-forward
+[33m3097b13[m[33m ([m[1;31morigin/trhiep[m[33m, [m[1;32mtrhiep[m[33m)[m HEAD@{9}: pull origin trhiep: Fast-forward
+[33m225bd8f[m HEAD@{10}: reset: moving to origin/lhoang
+[33m3097b13[m[33m ([m[1;31morigin/trhiep[m[33m, [m[1;32mtrhiep[m[33m)[m HEAD@{11}: checkout: moving from trhiep to lhoang
+[33m3097b13[m[33m ([m[1;31morigin/trhiep[m[33m, [m[1;32mtrhiep[m[33m)[m HEAD@{12}: checkout: moving from lhoang to trhiep
+[33m3097b13[m[33m ([m[1;31morigin/trhiep[m[33m, [m[1;32mtrhiep[m[33m)[m HEAD@{13}: pull origin trhiep: Fast-forward
+[33m225bd8f[m HEAD@{14}: reset: moving to HEAD
+[33m225bd8f[m HEAD@{15}: reset: moving to origin/lhoang
+[33m974e32f[m HEAD@{16}: pull origin trhiep: Merge made by the 'ort' strategy.
+[33m94bf3ce[m HEAD@{17}: checkout: moving from trhiep to lhoang
+[33m3097b13[m[33m ([m[1;31morigin/trhiep[m[33m, [m[1;32mtrhiep[m[33m)[m HEAD@{18}: pull origin trhiep: Fast-forward
+[33mf68a09f[m HEAD@{19}: checkout: moving from lhoang to trhiep
+[33m94bf3ce[m HEAD@{20}: pull origin main: Merge made by the 'ort' strategy.
+[33m225bd8f[m HEAD@{21}: commit: update UI
+[33md398ec6[m HEAD@{22}: commit: connect backend
+[33mf68a09f[m HEAD@{23}: checkout: moving from trhiep to lhoang
+[33mf68a09f[m HEAD@{24}: pull origin trhiep: Fast-forward
+[33m488c32d[m HEAD@{25}: checkout: moving from lhoang to trhiep
+[33mf68a09f[m HEAD@{26}: pull origin khanh: Fast-forward
+[33m488c32d[m HEAD@{27}: checkout: moving from khanh to lhoang
+[33me17c731[m HEAD@{28}: checkout: moving from lhoang to khanh
+[33m488c32d[m HEAD@{29}: reset: moving to HEAD
+[33m488c32d[m HEAD@{30}: merge trhiep: Fast-forward
+[33m48defe9[m[33m ([m[1;32mmain[m[33m)[m HEAD@{31}: checkout: moving from trhiep to lhoang
+[33m488c32d[m HEAD@{32}: pull origin trhiep: Fast-forward
+[33m9c48606[m HEAD@{33}: checkout: moving from lhoang to trhiep
+[33m48defe9[m[33m ([m[1;32mmain[m[33m)[m HEAD@{34}: checkout: moving from main to lhoang
+[33m48defe9[m[33m ([m[1;32mmain[m[33m)[m HEAD@{35}: merge lhoang: Fast-forward
+[33mc0efb4e[m HEAD@{36}: checkout: moving from lhoang to main
+[33m48defe9[m[33m ([m[1;32mmain[m[33m)[m HEAD@{37}: commit: update frontend
+[33mc0efb4e[m HEAD@{38}: merge main: Fast-forward
+[33mdad685f[m[33m ([m[1;31morigin/hung[m[33m)[m HEAD@{39}: checkout: moving from main to lhoang
+[33mc0efb4e[m HEAD@{40}: checkout: moving from lhoang to main
+[33mdad685f[m[33m ([m[1;31morigin/hung[m[33m)[m HEAD@{41}: checkout: moving from main to lhoang
+[33mc0efb4e[m HEAD@{42}: checkout: moving from lhoang to main
+[33mdad685f[m[33m ([m[1;31morigin/hung[m[33m)[m HEAD@{43}: checkout: moving from main to lhoang
+[33mc0efb4e[m HEAD@{44}: clone: from https://github.com/HoangQuocHung0605/THAI-Group-Skibidi.git
