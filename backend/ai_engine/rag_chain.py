@@ -60,9 +60,20 @@ class RAGChain:
             [{"question": "...", "answer": "..."}, ...]
         """
         try:
+            # 0. Kiểm tra nhanh lời chào xã giao đơn giản để phản hồi tức thì và không đính kèm nguồn
+            q_clean = question.strip().lower().replace("?", "").replace(".", "").replace("!", "").replace(",", "")
+            simple_greetings = {"hello", "hi", "chào", "chào bạn", "xin chào", "hey", "hi there", "hello there", "greetings"}
+            if q_clean in simple_greetings:
+                return "Xin chào! Tôi là trợ lý ảo hỗ trợ thông tin về GitLab Handbook. Tôi có thể giúp gì cho bạn hôm nay?", []
+
             # 1. Tìm tài liệu liên quan từ Database (Local Embedding)
             docs = self.retriever.invoke(question)
+            if not docs:
+                return "Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.", []
+
             context = self._format_docs(docs)
+            if not context.strip():
+                return "Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.", []
 
             # 2. Khởi tạo Client Groq
             api_key = os.getenv("GROQ_API_KEY")
@@ -77,9 +88,15 @@ class RAGChain:
                     "role": "system",
                     "content": (
                         "Bạn là chuyên gia về GitLab Handbook. "
-                        "Hãy trả lời bằng TIẾNG VIỆT dựa trên ngữ cảnh được cung cấp sau đây. "
+                        "Hãy trả lời bằng TIẾNG VIỆT dựa TRÊN NGỮ CẢNH ĐƯỢC CUNG CẤP dưới đây.\n"
+                        "CHỈ trả lời dựa trên thông tin có trong ngữ cảnh. KHÔNG ĐƯỢC tự suy luận, tự bịa hoặc sử dụng kiến thức bên ngoài.\n"
+                        "Nếu ngữ cảnh không chứa thông tin hoặc câu hỏi không liên quan đến GitLab Handbook, bạn BẮT BUỘC CHỈ ĐƯỢC trả lời duy nhất câu sau:\n"
+                        "'Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.'\n"
+                        "Đối với các câu chào hỏi xã giao hoặc hỏi thăm thông thường (ví dụ: 'hello', 'hi', 'chào bạn', 'bạn là ai',...), hãy trả lời một cách lịch sự và bắt buộc thêm tiền tố '[OFFTOPIC]' ở ngay đầu câu trả lời.\n"
+                        "Ví dụ: '[OFFTOPIC] Xin chào! Tôi là trợ lý ảo hỗ trợ GitLab Handbook. Hôm nay tôi có thể giúp gì cho bạn?'\n"
+                        "TUYỆT ĐỐI KHÔNG ĐƯỢC viết thêm bất kỳ thông tin tự suy luận hay kiến thức ngoài lề nào khác ngoài ngữ cảnh được cung cấp.\n\n"
                         "Nếu câu hỏi liên quan đến lịch sử hội thoại, hãy dùng context đó để trả lời nhất quán.\n\n"
-                        f"{context}"
+                        f"Ngữ cảnh:\n{context}"
                     )
                 }
             ]
@@ -95,10 +112,20 @@ class RAGChain:
             chat_completion = client.chat.completions.create(
                 messages=messages,
                 model="llama-3.3-70b-versatile",
-                temperature=0.2
+                temperature=0.0
             )
 
-            return chat_completion.choices[0].message.content, docs
+            answer = chat_completion.choices[0].message.content
+            
+            # Nếu câu trả lời bắt đầu bằng tiền tố [OFFTOPIC] (câu chào xã giao)
+            if answer.startswith("[OFFTOPIC]"):
+                answer = answer.replace("[OFFTOPIC]", "").strip()
+                docs = []
+            # Nếu câu trả lời thông báo không tìm thấy thông tin trong Handbook
+            elif "Tôi không tìm thấy thông tin" in answer or "không tìm thấy thông tin" in answer:
+                docs = []
+
+            return answer, docs
 
         except Exception as e:
             return f"Lỗi hệ thống Groq: {str(e)}", []
