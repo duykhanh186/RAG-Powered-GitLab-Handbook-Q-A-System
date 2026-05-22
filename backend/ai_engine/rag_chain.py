@@ -62,7 +62,12 @@ class RAGChain:
         try:
             # 1. Tìm tài liệu liên quan từ Database (Local Embedding)
             docs = self.retriever.invoke(question)
+            if not docs:
+                return "Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.", []
+
             context = self._format_docs(docs)
+            if not context.strip():
+                return "Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.", []
 
             # 2. Khởi tạo Client Groq
             api_key = os.getenv("GROQ_API_KEY")
@@ -77,9 +82,13 @@ class RAGChain:
                     "role": "system",
                     "content": (
                         "Bạn là chuyên gia về GitLab Handbook. "
-                        "Hãy trả lời bằng TIẾNG VIỆT dựa trên ngữ cảnh được cung cấp sau đây. "
+                        "Hãy trả lời bằng TIẾNG VIỆT dựa TRÊN NGỮ CẢNH ĐƯỢC CUNG CẤP dưới đây.\n"
+                        "CHỈ trả lời dựa trên thông tin có trong ngữ cảnh. KHÔNG ĐƯỢC tự suy luận, tự bịa hoặc sử dụng kiến thức bên ngoài.\n"
+                        "Nếu ngữ cảnh không chứa thông tin hoặc không liên quan đến câu hỏi, bạn BẮT BUỘC CHỈ ĐƯỢC trả lời duy nhất câu sau:\n"
+                        "'Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.'\n"
+                        "TUYỆT ĐỐI KHÔNG ĐƯỢC viết thêm bất kỳ từ ngữ nào khác, không giải thích, không đưa ra ví dụ hay gợi ý ngoài lề nào khác.\n\n"
                         "Nếu câu hỏi liên quan đến lịch sử hội thoại, hãy dùng context đó để trả lời nhất quán.\n\n"
-                        f"{context}"
+                        f"Ngữ cảnh:\n{context}"
                     )
                 }
             ]
@@ -95,10 +104,15 @@ class RAGChain:
             chat_completion = client.chat.completions.create(
                 messages=messages,
                 model="llama-3.3-70b-versatile",
-                temperature=0.2
+                temperature=0.0
             )
 
-            return chat_completion.choices[0].message.content, docs
+            answer = chat_completion.choices[0].message.content
+            # Nếu LLM trả về câu thông báo không tìm thấy thông tin, ta sẽ xóa danh sách tài liệu để không hiển thị nguồn rác
+            if "Tôi không tìm thấy thông tin" in answer or "không tìm thấy thông tin" in answer:
+                return "Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.", []
+
+            return answer, docs
 
         except Exception as e:
             return f"Lỗi hệ thống Groq: {str(e)}", []

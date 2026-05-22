@@ -5,6 +5,9 @@ function Chat() {
   // Danh sách tin nhắn, mỗi tin có dạng: { role: 'user'|'bot', content: '...', sources: [] }
   const [messages, setMessages] = useState([]);
 
+  // Nguồn tham khảo đang được chọn để xem chi tiết
+  const [selectedSource, setSelectedSource] = useState(null);
+
   // Nội dung người dùng đang gõ
   const [input, setInput] = useState('');
 
@@ -129,22 +132,24 @@ function Chat() {
               {/* Hiện sources nếu có */}
               {message.sources && message.sources.length > 0 && (
                 <div className="message-sources">
-                  <span>Nguon tham khao:</span>
-                  {message.sources.map((source, i) => {
-                    const url = typeof source === 'object' ? source.source : source;
-                    const text = typeof source === 'object' ? (source.source ? source.source.split('/').pop() : 'Nguồn ' + (i+1)) : source;
-                    return (
-                      <a
-                        key={i}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="source-link"
-                      >
-                        {text}
-                      </a>
-                    );
-                  })}
+                  <span>Nguồn tham khảo:</span>
+                  <div className="source-chips-container">
+                    {message.sources.map((source, i) => {
+                      const text = typeof source === 'object'
+                        ? (source.source ? source.source.split('/').pop() : 'Nguồn ' + (i+1))
+                        : source;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => setSelectedSource(source)}
+                          className="source-link-btn"
+                          title="Click để xem chi tiết nguồn tham khảo này"
+                        >
+                          📄 {text}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -200,6 +205,30 @@ function Chat() {
         </button>
 
       </div>
+
+      {/* ===== MODAL CHI TIẾT NGUỒN ===== */}
+      {selectedSource && (
+        <div className="modal-overlay" onClick={() => setSelectedSource(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <span>📄</span> Chi tiết nguồn tham khảo
+              </h3>
+              <button className="close-modal-btn" onClick={() => setSelectedSource(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="source-path-box">
+                <strong>Tệp tin:</strong> {typeof selectedSource === 'object' ? selectedSource.source : selectedSource}
+              </div>
+              <div className="source-text-container">
+                {typeof selectedSource === 'object' ? selectedSource.content : "Không tìm thấy nội dung chi tiết cho nguồn này."}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
