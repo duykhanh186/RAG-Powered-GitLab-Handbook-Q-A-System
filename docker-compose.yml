@@ -73,8 +73,8 @@ services:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 20s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,6 +125,7 @@ services:
         REACT_APP_API_URL: ""
     ports:
       - "3000:80"
+    restart: on-failure
     depends_on:
       backend:
         condition: service_healthy
