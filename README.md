@@ -60,6 +60,7 @@ docker compose up --build
 
 4. Mo trinh duyet:
 - Frontend: `http://localhost:3000`
+- Frontend cho admin: `http://localhost:3000/admin`
 - Backend API: `http://localhost:8000`
 - Health Check: `http://localhost:8000/health`
 
