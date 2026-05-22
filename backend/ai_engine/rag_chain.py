@@ -60,6 +60,12 @@ class RAGChain:
             [{"question": "...", "answer": "..."}, ...]
         """
         try:
+            # 0. Kiểm tra nhanh lời chào xã giao đơn giản để phản hồi tức thì và không đính kèm nguồn
+            q_clean = question.strip().lower().replace("?", "").replace(".", "").replace("!", "").replace(",", "")
+            simple_greetings = {"hello", "hi", "chào", "chào bạn", "xin chào", "hey", "hi there", "hello there", "greetings"}
+            if q_clean in simple_greetings:
+                return "Xin chào! Tôi là trợ lý ảo hỗ trợ thông tin về GitLab Handbook. Tôi có thể giúp gì cho bạn hôm nay?", []
+
             # 1. Tìm tài liệu liên quan từ Database (Local Embedding)
             docs = self.retriever.invoke(question)
             if not docs:
@@ -84,9 +90,11 @@ class RAGChain:
                         "Bạn là chuyên gia về GitLab Handbook. "
                         "Hãy trả lời bằng TIẾNG VIỆT dựa TRÊN NGỮ CẢNH ĐƯỢC CUNG CẤP dưới đây.\n"
                         "CHỈ trả lời dựa trên thông tin có trong ngữ cảnh. KHÔNG ĐƯỢC tự suy luận, tự bịa hoặc sử dụng kiến thức bên ngoài.\n"
-                        "Nếu ngữ cảnh không chứa thông tin hoặc không liên quan đến câu hỏi, bạn BẮT BUỘC CHỈ ĐƯỢC trả lời duy nhất câu sau:\n"
+                        "Nếu ngữ cảnh không chứa thông tin hoặc câu hỏi không liên quan đến GitLab Handbook, bạn BẮT BUỘC CHỈ ĐƯỢC trả lời duy nhất câu sau:\n"
                         "'Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.'\n"
-                        "TUYỆT ĐỐI KHÔNG ĐƯỢC viết thêm bất kỳ từ ngữ nào khác, không giải thích, không đưa ra ví dụ hay gợi ý ngoài lề nào khác.\n\n"
+                        "Đối với các câu chào hỏi xã giao hoặc hỏi thăm thông thường (ví dụ: 'hello', 'hi', 'chào bạn', 'bạn là ai',...), hãy trả lời một cách lịch sự và bắt buộc thêm tiền tố '[OFFTOPIC]' ở ngay đầu câu trả lời.\n"
+                        "Ví dụ: '[OFFTOPIC] Xin chào! Tôi là trợ lý ảo hỗ trợ GitLab Handbook. Hôm nay tôi có thể giúp gì cho bạn?'\n"
+                        "TUYỆT ĐỐI KHÔNG ĐƯỢC viết thêm bất kỳ thông tin tự suy luận hay kiến thức ngoài lề nào khác ngoài ngữ cảnh được cung cấp.\n\n"
                         "Nếu câu hỏi liên quan đến lịch sử hội thoại, hãy dùng context đó để trả lời nhất quán.\n\n"
                         f"Ngữ cảnh:\n{context}"
                     )
@@ -108,9 +116,14 @@ class RAGChain:
             )
 
             answer = chat_completion.choices[0].message.content
-            # Nếu LLM trả về câu thông báo không tìm thấy thông tin, ta sẽ xóa danh sách tài liệu để không hiển thị nguồn rác
-            if "Tôi không tìm thấy thông tin" in answer or "không tìm thấy thông tin" in answer:
-                return "Tôi không tìm thấy thông tin về vấn đề này trong GitLab Handbook.", []
+            
+            # Nếu câu trả lời bắt đầu bằng tiền tố [OFFTOPIC] (câu chào xã giao)
+            if answer.startswith("[OFFTOPIC]"):
+                answer = answer.replace("[OFFTOPIC]", "").strip()
+                docs = []
+            # Nếu câu trả lời thông báo không tìm thấy thông tin trong Handbook
+            elif "Tôi không tìm thấy thông tin" in answer or "không tìm thấy thông tin" in answer:
+                docs = []
 
             return answer, docs
 
