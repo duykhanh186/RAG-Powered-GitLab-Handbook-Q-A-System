@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 
 const NAV_ITEMS = [
   { to: '/admin/dashboard', icon: '📊', label: 'Dashboard' },
@@ -35,7 +35,6 @@ function BreadCrumb() {
 
 function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
-  const navigate = useNavigate();
 
   return (
     <div className="admin-layout">
@@ -77,16 +76,7 @@ function AdminLayout() {
           ))}
         </nav>
 
-        <div className="admin-sidebar__footer">
-          <button
-            className="admin-back-btn"
-            onClick={() => navigate('/')}
-            title="Quay lại Chat"
-          >
-            <span>💬</span>
-            {!collapsed && <span>Quay lại Chat</span>}
-          </button>
-        </div>
+
 
       </aside>
 
