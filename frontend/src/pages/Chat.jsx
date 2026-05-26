@@ -3,11 +3,12 @@ import { chatAPI } from '../services/api';
  
 function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreateNewChat }) {
  
-  const [messages, setMessages]   = useState(initialMessages);
-  const [input, setInput]         = useState('');
-  const [loading, setLoading]     = useState(false);
-  const bottomRef                 = useRef(null);
-  const textareaRef               = useRef(null);
+  const [messages, setMessages]       = useState(initialMessages);
+  const [input, setInput]             = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [selectedSource, setSelectedSource] = useState(null);
+  const bottomRef                     = useRef(null);
+  const textareaRef                   = useRef(null);
  
   // ── Khi đổi conversation (key thay đổi) reset messages ──────
   useEffect(() => {
@@ -48,7 +49,7 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
     onMessagesUpdate?.(conversationId, nextMessages);
  
     try {
-      const response = await chatAPI.sendMessage(userMsg.content);
+      const response = await chatAPI.sendMessage(userMsg.content, conversationId);
       const answer   = response.data?.answer || 'Không có phản hồi từ server.';
       const sources  = response.data?.sources || [];
  
@@ -110,6 +111,7 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
  
   // ─── Render ─────────────────────────────────────────────────
   return (
+    <>
     <div className="chat-container">
  
       {/* HEADER */}
@@ -165,14 +167,17 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
                 <div className="message-sources">
                   <span>Nguồn tham khảo:</span>
                   {msg.sources.map((source, j) => {
-                    const url  = typeof source === 'object' ? source.source : source;
-                    const text = typeof source === 'object'
-                      ? (source.source ? source.source.split('/').pop() : `Nguồn ${j + 1}`)
-                      : source;
+                    const srcObj = typeof source === 'object' ? source : { source, content: '' };
+                    const text   = srcObj.source ? srcObj.source.split('/').pop() : `Nguồn ${j + 1}`;
                     return (
-                      <a key={j} href={url} target="_blank" rel="noreferrer" className="source-link">
-                        {text}
-                      </a>
+                      <button
+                        key={j}
+                        className="source-link"
+                        onClick={() => setSelectedSource(srcObj)}
+                        title={srcObj.source || ''}
+                      >
+                        📄 {text}
+                      </button>
                     );
                   })}
                 </div>
@@ -222,7 +227,31 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
       </div>
  
     </div>
+ 
+    {/* SOURCE MODAL */}
+    {selectedSource && (
+      <div className="source-modal-overlay" onClick={() => setSelectedSource(null)}>
+        <div className="source-modal" onClick={e => e.stopPropagation()}>
+          <div className="source-modal__header">
+            <div className="source-modal__title">
+              <span className="source-modal__icon">📄</span>
+              <span>{selectedSource.source ? selectedSource.source.split('/').pop() : 'Nguồn tham khảo'}</span>
+            </div>
+            <button className="source-modal__close" onClick={() => setSelectedSource(null)}>✕</button>
+          </div>
+          {selectedSource.source && (
+            <div className="source-modal__path">{selectedSource.source}</div>
+          )}
+          <div className="source-modal__body">
+            <div className="source-modal__content">
+              {selectedSource.content || 'Không có nội dung chi tiết.'}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
- 
+
 export default Chat;

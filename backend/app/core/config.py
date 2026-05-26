@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-flash-latest"
     GOOGLE_EMBEDDING_MODEL: str = "models/gemini-embedding-001"
+
+    # Groq
+    GROQ_API_KEY: str = ""
  
     class Config:
         env_file = ".env"
@@ -45,3 +48,43 @@ def get_settings() -> Settings:
  
  
 settings = get_settings()
+
+
+# Dynamic RAG Settings Helper Functions
+import os
+import json
+
+SETTINGS_FILE = "/data/rag_settings.json"
+
+def read_rag_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r") as f:
+                data = json.load(f)
+                return {
+                    "chunk_size": data.get("chunk_size", 512),
+                    "chunk_overlap": data.get("chunk_overlap", 50),
+                    "embedding_model": data.get("embedding_model", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+                }
+        except Exception:
+            pass
+    return {
+        "chunk_size": 512,
+        "chunk_overlap": 50,
+        "embedding_model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    }
+
+def save_rag_settings(chunk_size: int, chunk_overlap: int, embedding_model: str = None):
+    try:
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        data = {
+            "chunk_size": chunk_size,
+            "chunk_overlap": chunk_overlap,
+            "embedding_model": embedding_model or "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        }
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(data, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"Lỗi khi ghi tệp cấu hình RAG: {e}")
+        return False

@@ -12,26 +12,19 @@ export const apiClient = axios.create({
 
 // ===== CHAT API =====
 export const chatAPI = {
-  // Gửi tin nhắn → POST /api/chat/
-  // Body: { message: "..." }
- sendMessage: (message) => apiClient.post('/chat/', { question: message }),
-
-  // Lấy lịch sử chat → GET /api/chat/history
+  sendMessage: (message, sessionId) => apiClient.post('/chat/', { question: message, session_id: sessionId }),
   getHistory: () => apiClient.get('/chat/history'),
 };
 
 // ===== HISTORY API =====
 export const historyAPI = {
-  // Lấy toàn bộ lịch sử → GET /api/history/
   getHistory: () => apiClient.get('/history/'),
-
-  // Xóa toàn bộ lịch sử → DELETE /api/history/
   deleteHistory: () => apiClient.delete('/history/'),
 };
 
 // ===== INGEST API =====
 export const ingestAPI = {
-  // Upload tài liệu → POST /api/ingest/
+  // Giữ lại đường dẫn /ingest/ gốc cho các file dự phòng nếu có
   uploadDocument: (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -39,7 +32,42 @@ export const ingestAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
-
-  // Lấy trạng thái hệ thống → GET /api/ingest/status
   getStatus: () => apiClient.get('/ingest/status'),
+};
+
+// ===== ADMIN API =====
+export const adminAPI = {
+  // 1. Dashboard
+  getDashboard:   () => apiClient.get('/admin/dashboard'),
+
+  // 2. Documents
+  getDocuments:   () => apiClient.get('/admin/documents'),
+  
+  
+  uploadDocument: (file, onProgress) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/admin/documents', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress) {
+          const pct = Math.round((e.loaded * 100) / e.total);
+          onProgress(pct);
+        }
+      },
+    });
+  },
+
+  deleteDocument:  (id) => apiClient.delete(`/admin/documents/${id}`),
+  reindexDocument: (id) => apiClient.post(`/admin/reindex/${id}`),
+
+  // 3. Users
+  getUsers:       ()         => apiClient.get('/admin/users'),
+  createUser:     (data)     => apiClient.post('/admin/users', data),
+  deleteUser:     (id)       => apiClient.delete(`/admin/users/${id}`),
+  updateUserRole: (id, role) => apiClient.patch(`/admin/users/${id}`, { role }),
+
+  // 4. Settings
+  getSettings:    ()     => apiClient.get('/admin/settings'),
+  updateSettings: (data) => apiClient.put('/admin/settings', data),
 };

@@ -10,8 +10,8 @@ class VectorDBManager:
     def __init__(self):
         self.collection_name = "gitlab_handbook"
 
-        # Khởi tạo embedding model từ file embeddings.py
-        self.embeddings = get_embedding_model()
+        # Khởi tạo embedding model lazy
+        self._embeddings = None
 
         # Kết nối tới Qdrant server qua URL (Docker container)
         qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -22,6 +22,12 @@ class VectorDBManager:
             api_key=qdrant_api_key,
         )
         self._ensure_collection()
+
+    @property
+    def embeddings(self):
+        if self._embeddings is None:
+            self._embeddings = get_embedding_model()
+        return self._embeddings
 
     def _ensure_collection(self):
         if not self.client.collection_exists(self.collection_name):
