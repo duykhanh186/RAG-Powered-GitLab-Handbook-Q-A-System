@@ -562,7 +562,7 @@ Dự án được xây dựng và phát triển bởi đội ngũ thành viên *
 | 1 | Hoàng Quốc Hùng | 24022343 |
 | 2 | Nguyễn Duy Khánh | 24022361 |
 | 3 | Ngô Trọng Hiệp | 24022325 |
-| 4 | Lương Quang Hoàng | 2402____ |
+| 4 | Lương Quang Hoàng | 24022337 |
 
 ---
 
