@@ -243,7 +243,15 @@ docker compose logs -f
 
 > **Lần đầu** mất khoảng 5–10 phút (tải images + embedding model). Các lần sau dưới 1 phút.
 
-### Bước 4 — Kiểm Tra Trạng Thái Services
+### Bước 4: Chạy lệnh chunk & nhúng dữ liệu ban đầu (chỉ cần chạy 1 lần duy nhất)
+
+```bash
+docker compose exec -T backend python scripts/ingest_handbook.py
+```
+
+> Sau khi chạy xong Bước 4, dữ liệu vector đã được lưu vĩnh viễn vào thư mục local data/qdrant/ trên máy tính của anh/chị. Từ các lần sau, anh/chị chỉ cần chạy docker compose up là dùng được ngay mà không cần chạy lại lệnh chunk nữa ạ!
+
+### Bước 5 — Kiểm Tra Trạng Thái Services
 
 ```bash
 # Xem trạng thái tất cả containers
@@ -256,7 +264,7 @@ curl http://localhost:8000/health
 
 Tất cả services trạng thái `healthy` là hệ thống đã sẵn sàng.
 
-### Bước 5 — Truy Cập Ứng Dụng
+### Bước 6 — Truy Cập Ứng Dụng
 
 | Service | URL | Credentials mặc định |
 | :--- | :--- | :--- |
