@@ -1,10 +1,10 @@
-# 🦊 RAG Solution - Hệ thống Hỏi Đáp GitLab Handbook Microservices
+# RAG Solution - Hệ thống Hỏi Đáp GitLab Handbook Microservices
 
 Hệ thống Hỏi đáp (Q&A) thông minh dựa trên nội dung **GitLab Handbook**, sử dụng kiến trúc **RAG (Retrieval-Augmented Generation)** tiên tiến kết hợp sức mạnh của mô hình ngôn ngữ lớn (LLM) và cơ sở dữ liệu Vector. Dự án được phát triển dưới dạng **Microservices** chạy hoàn toàn trên Docker Container, tích hợp sẵn hệ thống **Admin Dashboard** quản trị chuyên sâu.
 
 ---
 
-## 📋 Mục lục
+## Mục lục
 
 * [Mô tả dự án](#-mô-tả-dự-án)
 * [Kiến trúc hệ thống](#-kiến-trúc-hệ-thống)
@@ -18,7 +18,7 @@ Hệ thống Hỏi đáp (Q&A) thông minh dựa trên nội dung **GitLab Handb
 
 ---
 
-## 📝 Mô tả dự án
+## Mô tả dự án
 
 **RAG Solution - GitLab Handbook Q&A Chatbot** là một giải pháp toàn diện cho phép người dùng đặt câu hỏi và tra cứu thông tin nhanh chóng từ cuốn sổ tay hướng dẫn khổng lồ của GitLab (GitLab Handbook). Hệ thống giải quyết bài toán quá tải thông tin bằng cách kết hợp cơ chế tìm kiếm ngữ nghĩa thông minh và mô hình tạo ngôn ngữ tự nhiên.
 
@@ -29,7 +29,7 @@ Hệ thống Hỏi đáp (Q&A) thông minh dựa trên nội dung **GitLab Handb
 
 ---
 
-## 🏗️ Kiến trúc hệ thống
+## Kiến trúc hệ thống
 
 Hệ thống được thiết kế theo mô hình **Microservices** phân tách độc lập, giao tiếp thông qua mạng nội bộ Docker và được định tuyến tập trung bởi Reverse Proxy **Nginx**.
 
@@ -37,6 +37,7 @@ Hệ thống được thiết kế theo mô hình **Microservices** phân tách 
 
 Dưới đây là sơ đồ chi tiết luồng giao tiếp giữa các thành phần dịch vụ trong hệ thống:
 
+![Sơ đồ kiến trúc hệ thống RAG](btl.drawio.png)
 ```mermaid
 graph TD
     User([Người dùng / Quản trị viên]) <-->|Cổng 80| Nginx[Reverse Proxy - Nginx]
@@ -83,13 +84,13 @@ sequenceDiagram
     rect rgb(240, 248, 255)
         Note over Celery, DB: Tiến trình Celery Background Processing
         Celery->>MinIO: 5. Đọc tải file gốc về Worker
-        Celery->>Celery: 6. Cắt nhỏ văn bản (Chunk Size: 512, Overlap: 50)
+        Celery->>Celery: 6. Cắt nhỏ văn bản (Chunk Size: 1000, Overlap: 150)
         Celery->>Celery: 7. Gọi local model sinh embeddings (384 chiều)
         Celery->>DB: 8. Lưu vector nhúng kèm metadata nguồn của file
     end
 ```
 
-- **Cắt nhỏ văn bản (Chunking):** Tự động chuẩn hóa văn bản thô, cắt thành từng đoạn nhỏ tối ưu `512` token và độ chồng lấp `50` token để giữ trọn ngữ cảnh.
+- **Cắt nhỏ văn bản (Chunking):** Tự động chuẩn hóa văn bản thô, cắt thành từng đoạn nhỏ tối ưu `1000` token và độ chồng lấp `150` token để giữ trọn ngữ cảnh.
 - **Embedding Model:** Sử dụng mô hình cục bộ song ngữ Anh - Việt `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` thông qua thư viện `langchain_huggingface` để sinh vector nhúng 384 chiều.
 
 #### Quy trình trả lời hỏi đáp (Retrieval & Generation Pipeline)
@@ -131,7 +132,7 @@ sequenceDiagram
 
 ---
 
-## 🛠️ Công nghệ sử dụng
+## Công nghệ sử dụng
 
 Hệ thống được phát triển dựa trên các công nghệ hiện đại, đảm bảo tính mở rộng và khả năng chịu tải tốt:
 
@@ -167,7 +168,7 @@ Hệ thống được phát triển dựa trên các công nghệ hiện đại,
 
 ---
 
-## 💻 Yêu cầu hệ thống
+## Yêu cầu hệ thống
 
 Trước khi bắt đầu cài đặt và khởi chạy dự án, hãy đảm bảo hệ thống của bạn đáp ứng các yêu cầu tối thiểu sau:
 
@@ -184,7 +185,7 @@ Trước khi bắt đầu cài đặt và khởi chạy dự án, hãy đảm b�
 
 ---
 
-## 🚀 Cài đặt & Chạy
+## Cài đặt & Chạy
 
 Đảm bảo **Docker** & **Docker Desktop** đã được cài đặt và đang chạy trên thiết bị của bạn.
 
@@ -225,14 +226,14 @@ docker compose logs -f
 
 #### Bước 5: Truy cập hệ thống trải nghiệm
 Sau khi quá trình khởi chạy hoàn tất thành công, bạn có thể mở trình duyệt và truy cập các cổng dịch vụ sau:
-* 🦊 **Giao diện Chatbot & Quản trị:** [http://localhost](http://localhost) (hoặc [http://localhost:3000](http://localhost:3000))
-* 👑 **Hệ thống Quản trị (Admin):** [http://localhost/admin](http://localhost/admin) (hoặc [http://localhost:3000/admin](http://localhost:3000/admin))
-* 📑 **Tài liệu API Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
-* 🗄️ **Giao diện lưu trữ MinIO:** [http://localhost:9001](http://localhost:9001) (Tài khoản/Mật khẩu mặc định: `minioadmin` / `minioadmin`)
+**Giao diện Chatbot & Quản trị:** [http://localhost](http://localhost) (hoặc [http://localhost:3000](http://localhost:3000))
+**Hệ thống Quản trị (Admin):** [http://localhost/admin](http://localhost/admin) (hoặc [http://localhost:3000/admin](http://localhost:3000/admin))
+**Tài liệu API Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
+**Giao diện lưu trữ MinIO:** [http://localhost:9001](http://localhost:9001) (Tài khoản/Mật khẩu mặc định: `minioadmin` / `minioadmin`)
 
 ---
 
-## ⚙️ Cấu hình biến môi trường
+## Cấu hình biến môi trường
 
 Hệ thống điều khiển toàn bộ cấu hình thông qua tệp `.env`. Dưới đây là bảng giải nghĩa chi tiết các thông số cấu hình:
 
@@ -250,7 +251,7 @@ Hệ thống điều khiển toàn bộ cấu hình thông qua tệp `.env`. Dư
 
 ---
 
-## 📖 Hướng dẫn sử dụng
+## Hướng dẫn sử dụng
 
 ### 1. Giao diện trò chuyện thông thường (Chat Client)
 - **Tạo phòng trò chuyện mới:** Truy cập trang chủ [http://localhost](http://localhost), nhấn nút **"New Chat"** ở thanh thanh Sidebar bên trái để bắt đầu một phiên chat mới.
@@ -267,8 +268,8 @@ Hệ thống điều khiển toàn bộ cấu hình thông qua tệp `.env`. Dư
    - Kiểm tra trạng thái kết nối trực tiếp (Real-time Health Check) của PostgreSQL, Redis, Qdrant và dịch vụ Celery Worker.
 2. **Quản lý Tài Liệu (Documents Management):**
    - **Tải lên tài liệu mới:** Kéo thả tệp PDF, DOCX, TXT vào vùng **Drag & Drop Zone**. Hệ thống sẽ ngay lập tức đẩy file lên MinIO Object Storage và tự động gửi một background task tới Celery Worker để thực thi chuỗi nạp (Chunking -> Embedding -> Vector DB).
-   - **Tái lập chỉ mục (Re-index 🔄):** Nhấp chọn biểu tượng Refresh cạnh tài liệu để bắt đầu nạp lại dữ liệu trong trường hợp phát hiện lỗi nhúng hoặc muốn cập nhật nội dung.
-   - **Xóa tài liệu (Delete 🗑️):** Nhấn nút xóa để loại bỏ tài liệu khỏi MinIO, PostgreSQL và đồng thời xóa sạch các vector điểm tương ứng trong CSDL Vector Qdrant.
+   - **Tái lập chỉ mục (Re-index):** Nhấp chọn biểu tượng Refresh cạnh tài liệu để bắt đầu nạp lại dữ liệu trong trường hợp phát hiện lỗi nhúng hoặc muốn cập nhật nội dung.
+   - **Xóa tài liệu (Delete):** Nhấn nút xóa để loại bỏ tài liệu khỏi MinIO, PostgreSQL và đồng thời xóa sạch các vector điểm tương ứng trong CSDL Vector Qdrant.
 3. **Quản lý Người dùng (Users Management):**
    - Liệt kê danh sách tất cả các tài khoản người dùng có quyền truy cập hệ thống.
    - Tạo tài khoản người dùng mới, thiết lập/thay đổi vai trò của người dùng (`admin` hoặc `user`) hoặc vô hiệu hóa tài khoản.
@@ -317,19 +318,19 @@ Hệ thống cung cấp tài liệu API chuẩn hóa tại `/docs`. Dưới đâ
 
 ---
 
-## 📂 Cấu trúc thư mục
+## Cấu trúc thư mục
 
 Hệ thống sử dụng cấu trúc **Monorepo** gọn gàng, rõ ràng và phân định rạch ròi trách nhiệm giữa các dịch vụ:
 
 ```text
 THAI-Group-Skibidi/
-├── backend/                 # 🐍 FastAPI Backend & RAG Engine
-│   ├── ai_engine/          # 🧠 Lớp xử lý AI chuyên biệt
+├── backend/                 # FastAPI Backend & RAG Engine
+│   ├── ai_engine/          # Lớp xử lý AI chuyên biệt
 │   │   ├── embedding.py    # Khởi tạo mô hình nhúng cục bộ (paraphrase-multilingual)
 │   │   ├── processor.py    # Cắt nhỏ văn bản (Chunking), làm sạch ký tự lạ
 │   │   ├── vector_db.py    # Kết nối, tạo collection, chèn và xóa index trên Qdrant
 │   │   └── rag_chain.py    # Thiết lập RAG pipeline (Lấy context + Groq Llama 3)
-│   ├── app/                # 🛠️ FastAPI Application Core
+│   ├── app/                # FastAPI Application Core
 │   │   ├── api/            # API Endpoints được gom nhóm theo logic nghiệp vụ
 │   │   │   ├── admin.py    # Cổng API dành riêng cho trang quản trị Admin
 │   │   │   ├── chat.py     # Cổng API chính nhận thông điệp chatbot
@@ -345,7 +346,7 @@ THAI-Group-Skibidi/
 │   ├── main.py             # Điểm khởi chạy chính của dịch vụ FastAPI Backend
 │   ├── requirements.txt    # Danh sách thư viện Python cần thiết
 │   └── dockerfile          # Hướng dẫn đóng gói container Backend
-├── frontend/               # ⚛️ React SPA Frontend
+├── frontend/               # React SPA Frontend
 │   ├── public/             # Tài nguyên tĩnh công khai (logo, favicon, v.v.)
 │   ├── src/                # Mã nguồn JavaScript của giao diện React
 │   │   ├── components/     # Các thành phần giao diện tái sử dụng (Sidebar, Chat Window)
@@ -356,31 +357,23 @@ THAI-Group-Skibidi/
 │   │   └── App.css         # CSS styling cao cấp, hiệu ứng chuyển màu
 │   ├── package.json        # Định nghĩa các thư viện Node.js và scripts khởi chạy
 │   └── dockerfile          # Hướng dẫn build Frontend React và chạy qua Nginx
-├── nginx/                  # 🌐 Cấu hình Reverse Proxy Nginx
+├── nginx/                  # Cấu hình Reverse Proxy Nginx
 │   └── default.conf        # Định tuyến cổng 80 cho các luồng requests (Frontend/Backend)
-├── data/                   # 💾 Lưu trữ dữ liệu bền vững qua Volume Mount
+├── data/                   # Lưu trữ dữ liệu bền vững qua Volume Mount
 │   ├── postgres/           # Cơ sở dữ liệu PostgreSQL vật lý
 │   ├── qdrant/             # Cơ sở dữ liệu Qdrant Vector vật lý
 │   └── minio/              # Tài liệu thô lưu trên MinIO
-├── docker-compose.yml      # 🐳 File điều phối toàn bộ hệ thống microservices Docker
+├── docker-compose.yml      # File điều phối toàn bộ hệ thống microservices Docker
 ├── .env.example            # Bản mẫu cấu hình biến môi trường
-└── README.md               # Tài liệu hướng dẫn sử dụng chi tiết hệ thống (Hiện tại)
+└── README.md               # Tài liệu hướng dẫn sử dụng chi tiết hệ thống
 ```
 
 ---
 
-## 👥 Thành viên nhóm
+## Thành viên nhóm
 
-Dự án được xây dựng và phát triển bởi đội ngũ thành viên **THAI Group**:
-
-| Ảnh đại diện | Họ và Tên | Vai trò chính | Tài khoản GitHub | Email liên hệ |
-| :---: | :--- | :--- | :--- | :--- |
-| <img src="https://github.com/HoangQuocHung0605.png" width="60" style="border-radius:50%;"/> | **Hoàng Quốc Hùng** | **Leader / Fullstack Developer** <br/> Kiến trúc sư RAG Engine, thiết kế cơ sở dữ liệu và điều phối dự án. | [@HoangQuocHung0605](https://github.com/HoangQuocHung0605) | `hung.hq@example.com` |
-| <img src="https://github.com/duykhanh186.png" width="60" style="border-radius:50%;"/> | **Nguyễn Duy Khánh** | **Backend Developer & DevOps** <br/> Tích hợp Celery, thiết lập MinIO Object Storage và Docker Compose. | [@duykhanh186](https://github.com/duykhanh186) | `khanhall1806@gmail.com` |
-| <img src="https://github.com/hoangluong-TB.png" width="60" style="border-radius:50%;"/> | **Lương Huy Hoàng** | **Frontend Developer** <br/> Thiết kế giao diện ReactJS, xây dựng Admin Dashboard và tối ưu hóa CSS. | [@hoangluong-TB](https://github.com/hoangluong-TB) | `lhoang2027@gmail.com` |
-| <img src="https://github.com/TrHiep288.png" width="60" style="border-radius:50%;"/> | **Trần Trung Hiệp** | **AI & Embedding Specialist** <br/> Nghiên cứu mô hình nhúng, tiền xử lý tài liệu (Chunking) và tối ưu prompt. | [@TrHiep288](https://github.com/TrHiep288) | `hieptodz@gmail.com` |
-
----
-
-> [!TIP]
-> **🦊 RAG Solution - GitLab Handbook Q&A Chatbot** được xây dựng nhằm mang lại trải nghiệm tối ưu nhất cho việc tra cứu thông tin nội bộ. Mọi đóng góp xin vui lòng gửi Pull Request hoặc tạo Issue trên Github. Chúc các bạn có những trải nghiệm tuyệt vời!
+Dự án được xây dựng và phát triển bởi đội ngũ thành viên **Skibidi Group**:
+Hoàng Quốc Hùng 
+Nguyễn Duy Khánh 24022361
+Ngô Trọng Hiệp
+Lương Quang Hoàng
