@@ -21,9 +21,19 @@ class GitLabHandbookProcessor:
             strip_headers=False
         )
         
+        # Đọc cấu hình RAG động từ Admin Settings (chunk_size, chunk_overlap)
+        try:
+            from app.core.config import read_rag_settings
+            rag_settings = read_rag_settings()
+            chunk_size = rag_settings["chunk_size"]
+            chunk_overlap = rag_settings["chunk_overlap"]
+        except Exception:
+            chunk_size = 512
+            chunk_overlap = 50
+        
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=150,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", ".", " ", ""] # Ưu tiên ngắt ở đoạn văn
         )
 

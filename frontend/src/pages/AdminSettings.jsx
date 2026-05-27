@@ -88,16 +88,33 @@ function AdminSettings() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleSave = useCallback(async () => {
+    // Validate chunk_size
+    const cs = parseInt(chunkSize);
+    const co = parseInt(chunkOverlap);
+    if (chunkSize && (isNaN(cs) || cs < 100 || cs > 5000)) {
+      addToast('Chunk size phải nằm trong khoảng 100 - 5000.', 'error');
+      return;
+    }
+    if (chunkOverlap && (isNaN(co) || co < 0)) {
+      addToast('Chunk overlap không được nhỏ hơn 0.', 'error');
+      return;
+    }
+    if (cs && co >= cs) {
+      addToast(`Chunk overlap (${co}) phải nhỏ hơn chunk size (${cs}).`, 'error');
+      return;
+    }
+
     setSaving(true);
     try {
-      await adminAPI.updateSettings({
+      const res = await adminAPI.updateSettings({
         embedding_model: embeddingModel,
-        chunk_size:      parseInt(chunkSize)    || undefined,
-        chunk_overlap:   parseInt(chunkOverlap) || undefined,
+        chunk_size:      cs || undefined,
+        chunk_overlap:   co != null && !isNaN(co) ? co : undefined,
       });
-      addToast('✅ Đã lưu cấu hình');
-    } catch {
-      addToast('Lưu cấu hình thất bại.', 'error');
+      addToast(res.data?.message || `✅ Đã lưu (chunk_size=${cs}, overlap=${co})`);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      addToast(detail || 'Lưu cấu hình thất bại.', 'error');
     } finally {
       setSaving(false);
     }
@@ -139,19 +156,24 @@ function AdminSettings() {
           </SettingRow>
         </SettingCard>
 
-        <SettingCard title="Embedding Model" icon="🧠" loading={loading}>
-          <SettingRow label="Model hiện tại" hint="Model dùng để tạo vector">
+        <SettingCard title="Embedding & Chunking" icon="🧠" loading={loading}>
+          <SettingRow label="Model hiện tại" hint="Model dùng để tạo vector nhúng">
             <input className="form-input form-input--sm" value={embeddingModel}
-              onChange={e => setEmbeddingModel(e.target.value)} placeholder="vd: text-embedding-ada-002" />
+              onChange={e => setEmbeddingModel(e.target.value)} placeholder="vd: sentence-transformers/..." />
           </SettingRow>
-          <SettingRow label="Chunk size" hint="Số token mỗi chunk">
+          <SettingRow label="Chunk size" hint="Độ dài mỗi đoạn văn bản (100 – 5000 ký tự)">
             <input className="form-input form-input--sm" type="number" value={chunkSize}
+              min="100" max="5000" step="50"
               onChange={e => setChunkSize(e.target.value)} placeholder="vd: 512" />
           </SettingRow>
-          <SettingRow label="Chunk overlap" hint="Số token overlap giữa các chunk">
+          <SettingRow label="Chunk overlap" hint={`Số ký tự chồng lấp giữa các chunk (0 – ${(parseInt(chunkSize) || 512) - 1})`}>
             <input className="form-input form-input--sm" type="number" value={chunkOverlap}
+              min="0" max={Math.max(0, (parseInt(chunkSize) || 512) - 1)} step="10"
               onChange={e => setChunkOverlap(e.target.value)} placeholder="vd: 50" />
           </SettingRow>
+          <div style={{ padding: '10px 18px', fontSize: 11, color: '#888', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            ⚠️ Thay đổi chunk size / overlap chỉ áp dụng cho tài liệu được nạp <b>sau khi lưu</b>. Tài liệu cũ cần Re-index.
+          </div>
         </SettingCard>
 
         <SettingCard title="Vector Database" icon="🗄️" loading={loading}>
