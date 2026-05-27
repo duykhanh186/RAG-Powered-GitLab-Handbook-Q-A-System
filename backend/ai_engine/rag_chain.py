@@ -152,6 +152,8 @@ class RAGChain:
                         "Hãy trả lời câu hỏi của người dùng bằng TIẾNG VIỆT dựa TRÊN NGỮ CẢNH (context) được cung cấp dưới đây.\n\n"
                         "QUY TẮC PHẠM VI TRẢ LỜI NGHIÊM NGẶT:\n\n"
                         "1. ĐỐI VỚI CÂU HỎI NẰM TRONG BẢN CẢNH (ON-TOPIC):\n"
+                        "   - Hãy trả lời một cách CHI TIẾT, ĐẦY ĐỦ, TOÀN DIỆN và CỤ THỂ nhất có thể dựa vào thông tin trong phần 'Ngữ cảnh'. Không tóm tắt quá ngắn gọn làm mất đi các chi tiết quan trọng.\n"
+                        "   - Hãy trình bày câu trả lời một cách rõ ràng, khoa học, sử dụng các dấu đầu dòng (bullet points) hoặc danh sách đánh số để phân tích các ý chính nếu ngữ cảnh chứa nhiều thông tin chi tiết.\n"
                         "   - Chỉ trả lời dựa vào thông tin CÓ SẴN trong phần 'Ngữ cảnh' dưới đây.\n"
                         "   - Trả lời trung thực, chính xác, không tự suy diễn hay thêm bớt thông tin ngoài ngữ cảnh.\n\n"
                         "2. ĐỐI VỚI CÂU HỎI LUNG TUNG, NGOÀI LỀ, KIẾN THỨC CHUNG HOẶC KHÔNG CÓ TRONG NGỮ CẢNH (OFF-TOPIC):\n"
