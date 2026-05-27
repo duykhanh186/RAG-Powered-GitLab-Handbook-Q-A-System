@@ -11,7 +11,13 @@ from langchain_core.documents import Document
 class IngestService:
     def __init__(self):
         self.vector_db = VectorDBManager()
-        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+        # Đọc cấu hình RAG động từ Admin Settings
+        from app.core.config import read_rag_settings
+        rag_settings = read_rag_settings()
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=rag_settings["chunk_size"],
+            chunk_overlap=rag_settings["chunk_overlap"]
+        )
 
     async def ingest_document(self, file: UploadFile, db: Session):
         # Tải cấu hình RAG động từ Settings để áp dụng tức thì

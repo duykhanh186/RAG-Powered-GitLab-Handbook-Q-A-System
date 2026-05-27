@@ -420,9 +420,20 @@ def update_settings(body: SettingsUpdate):
         chunk_overlap = body.chunk_overlap if body.chunk_overlap is not None else current["chunk_overlap"]
         embedding_model = body.embedding_model if body.embedding_model is not None else current["embedding_model"]
         
+        # Kiểm tra giá trị hợp lệ
+        if chunk_size < 100 or chunk_size > 5000:
+            raise HTTPException(status_code=400, detail="Chunk size phải nằm trong khoảng 100 - 5000.")
+        if chunk_overlap < 0 or chunk_overlap >= chunk_size:
+            raise HTTPException(status_code=400, detail=f"Chunk overlap phải nằm trong khoảng 0 - {chunk_size - 1} (nhỏ hơn chunk size).")
+        
         success = save_rag_settings(chunk_size, chunk_overlap, embedding_model)
         if not success:
             raise HTTPException(status_code=500, detail="Không thể lưu tệp cấu hình RAG.")
-        return {"success": True, "message": "Đã cập nhật cấu hình RAG thành công!"}
+        return {
+            "success": True, 
+            "message": f"Đã cập nhật cấu hình RAG thành công! (chunk_size={chunk_size}, chunk_overlap={chunk_overlap})"
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

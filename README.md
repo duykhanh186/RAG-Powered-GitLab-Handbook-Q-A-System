@@ -12,9 +12,11 @@ Hệ thống Hỏi đáp (Q&A) thông minh dựa trên nội dung **GitLab Handb
 * [Yêu cầu hệ thống](#-yêu-cầu-hệ-thống)
 * [Cài đặt & Chạy](#-cài-đặt--chạy)
 * [Cấu hình biến môi trường](#-cấu-hình-biến-môi-trường)
+* [Lược đồ cơ sở dữ liệu](#-lược-đồ-cơ-sở-dữ-liệu-database-schema)
 * [Hướng dẫn sử dụng](#-hướng-dẫn-sử-dụng)
 * [Cấu trúc thư mục](#-cấu-trúc-thư-mục)
 * [Thành viên nhóm](#-thành-viên-nhóm)
+* [Xử lý sự cố thường gặp](#-xử-lý-sự-cố-thường-gặp-troubleshooting)
 
 ---
 
@@ -37,7 +39,7 @@ Hệ thống được thiết kế theo mô hình **Microservices** phân tách 
 
 Dưới đây là sơ đồ chi tiết luồng giao tiếp giữa các thành phần dịch vụ trong hệ thống:
 
-![Sơ đồ kiến trúc hệ thống RAG](btl.drawio.png)
+![Sơ đồ kiến trúc hệ thống RAG](So_do_kien_truc.png)
 ```mermaid
 graph TD
     User([Người dùng / Quản trị viên]) <-->|Cổng 80| Nginx[Reverse Proxy - Nginx]
@@ -80,18 +82,19 @@ sequenceDiagram
     Backend->>MinIO: 2. Đẩy file gốc lưu trữ dạng Object
     Backend->>Celery: 3. Khởi tạo tác vụ Ingest bất đồng bộ
     Backend-->>User: 4. Phản hồi tải file thành công (Đang xử lý nền)
-    
     rect rgb(240, 248, 255)
         Note over Celery, DB: Tiến trình Celery Background Processing
         Celery->>MinIO: 5. Đọc tải file gốc về Worker
-        Celery->>Celery: 6. Cắt nhỏ văn bản (Chunk Size: 1000, Overlap: 150)
+        Celery->>Celery: 6. Cắt nhỏ văn bản (Theo Chunk Size & Overlap từ cấu hình RAG động)
         Celery->>Celery: 7. Gọi local model sinh embeddings (384 chiều)
         Celery->>DB: 8. Lưu vector nhúng kèm metadata nguồn của file
     end
 ```
 
-- **Cắt nhỏ văn bản (Chunking):** Tự động chuẩn hóa văn bản thô, cắt thành từng đoạn nhỏ tối ưu `1000` token và độ chồng lấp `150` token để giữ trọn ngữ cảnh.
+- **Cắt nhỏ văn bản (Chunking):** Chuẩn hóa văn bản thô và cắt thành các đoạn nhỏ. Các tham số **Chunk Size** (Độ dài đoạn văn) và **Chunk Overlap** (Độ chồng lấp) được quản lý và cấu hình linh động trực tiếp từ trang quản trị **Admin Settings** (giá trị mặc định tối ưu lần lượt là `1000` và `150` ký tự/token) giúp bảo toàn ngữ cảnh tốt nhất cho từng loại tài liệu.
 - **Embedding Model:** Sử dụng mô hình cục bộ song ngữ Anh - Việt `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` thông qua thư viện `langchain_huggingface` để sinh vector nhúng 384 chiều.
+- **Query Condensation:** Trước khi tìm kiếm, hệ thống sử dụng LLM để chuyển đổi câu hỏi tiếp nối (follow-up) thành câu hỏi độc lập dựa trên lịch sử hội thoại (tối đa 5 lượt gần nhất), giúp truy vấn Vector DB chính xác hơn.
+- **Off-Topic Detection:** Hệ thống tự động nhận diện câu hỏi ngoài phạm vi GitLab Handbook (lời chào, kiến thức chung) bằng tiền tố `[OFFTOPIC]` và phản hồi lịch sự mà không đính kèm nguồn tài liệu.
 
 #### Quy trình trả lời hỏi đáp (Retrieval & Generation Pipeline)
 Luồng xử lý câu hỏi của người dùng và sinh câu trả lời dựa trên ngữ cảnh:
@@ -113,6 +116,9 @@ sequenceDiagram
     Groq-->>API: 8. Trả về nội dung câu trả lời
     API-->>User: 9. Trả về câu trả lời + Các nguồn tài liệu tham chiếu (Sources)
 ```
+
+- **Top-K Retrieval:** Truy vấn tìm kiếm `8` đoạn văn bản tương đồng nhất (Cosine Similarity) từ Qdrant Vector DB để xây dựng ngữ cảnh.
+- **Conversational Memory:** Hệ thống giữ tối đa `10` lượt hội thoại gần nhất trong prompt để đảm bảo tính nhất quán khi trả lời các câu hỏi tiếp nối.
 
 ---
 
@@ -226,10 +232,24 @@ docker compose logs -f
 
 #### Bước 5: Truy cập hệ thống trải nghiệm
 Sau khi quá trình khởi chạy hoàn tất thành công, bạn có thể mở trình duyệt và truy cập các cổng dịch vụ sau:
-**Giao diện Chatbot & Quản trị:** [http://localhost](http://localhost) (hoặc [http://localhost:3000](http://localhost:3000))
-**Hệ thống Quản trị (Admin):** [http://localhost/admin](http://localhost/admin) (hoặc [http://localhost:3000/admin](http://localhost:3000/admin))
-**Tài liệu API Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
-**Giao diện lưu trữ MinIO:** [http://localhost:9001](http://localhost:9001) (Tài khoản/Mật khẩu mặc định: `minioadmin` / `minioadmin`)
+
+| Dịch vụ | Địa chỉ truy cập | Ghi chú |
+| :--- | :--- | :--- |
+| **Giao diện Chatbot** | [http://localhost](http://localhost) hoặc [http://localhost:3000](http://localhost:3000) | Trang chủ hỏi đáp AI |
+| **Admin Dashboard** | [http://localhost/admin](http://localhost/admin) | Quản trị hệ thống (Dashboard, Tài liệu, Users, Settings) |
+| **Swagger API Docs** | [http://localhost:8000/docs](http://localhost:8000/docs) | Tài liệu & kiểm thử API tương tác |
+| **MinIO Console** | [http://localhost:9001](http://localhost:9001) | Quản lý file Object Storage (TK: `minioadmin` / MK: `minioadmin`) |
+| **Qdrant Dashboard** | [http://localhost:6333/dashboard](http://localhost:6333/dashboard) | Quản lý Vector DB trực quan |
+
+#### Bước 6: Dừng hệ thống
+Khi cần tắt toàn bộ hệ thống:
+```bash
+docker compose down
+```
+Nếu muốn xóa sạch dữ liệu và volumes để cài lại từ đầu:
+```bash
+docker compose down -v
+```
 
 ---
 
@@ -237,49 +257,87 @@ Sau khi quá trình khởi chạy hoàn tất thành công, bạn có thể mở
 
 Hệ thống điều khiển toàn bộ cấu hình thông qua tệp `.env`. Dưới đây là bảng giải nghĩa chi tiết các thông số cấu hình:
 
+### Biến cần cấu hình thủ công
+
 | Tên biến môi trường | Giá trị mặc định | Trạng thái | Mô tả & Vai trò |
 | :--- | :--- | :---: | :--- |
-| **`GROQ_API_KEY`** | *Trống (Cần điền)* | **Bắt buộc** | Khóa API để gọi mô hình ngôn ngữ lớn siêu tốc Llama-3.3 từ nhà cung cấp dịch vụ Groq Cloud. |
+| **`GROQ_API_KEY`** | *Trống (Cần điền)* | **Bắt buộc** | Khóa API để gọi mô hình ngôn ngữ lớn siêu tốc Llama-3.3-70b-versatile từ nhà cung cấp dịch vụ [Groq Cloud](https://console.groq.com/). |
 | **`POSTGRES_DB`** | `rag_db` | Tùy chọn | Tên cơ sở dữ liệu quan hệ của hệ thống PostgreSQL. |
 | **`POSTGRES_USER`** | `postgres` | Tùy chọn | Tài khoản quản trị tối cao của cơ sở dữ liệu PostgreSQL. |
 | **`POSTGRES_PASSWORD`** | `postgres` | Tùy chọn | Mật khẩu truy cập cơ sở dữ liệu PostgreSQL. |
 | **`QDRANT_API_KEY`** | `qdrant_key` | Tùy chọn | Khóa bảo mật API dùng để xác thực quyền đọc/ghi vào CSDL Vector Qdrant. |
+| **`MINIO_ROOT_USER`** | `minioadmin` | Tùy chọn | Tài khoản đăng nhập vào MinIO Object Storage Console. |
+| **`MINIO_ROOT_PASSWORD`** | `minioadmin` | Tùy chọn | Mật khẩu đăng nhập MinIO Object Storage Console. |
 | **`REDIS_PASSWORD`** | *Trống* | Tùy chọn | Mật khẩu bảo vệ của Redis (mặc định để trống trong mạng nội bộ Docker). |
-| **`DATABASE_URL`** | `postgresql://postgres:postgres@postgres:5432/rag_db` | Tự động | Đường dẫn URI kết nối CSDL PostgreSQL cho SQLAlchemy ORM. |
-| **`REDIS_URL`** | `redis://redis:6379` | Tự động | Đường dẫn kết nối Redis Broker cho Celery và bộ nhớ đệm cache. |
-| **`REACT_APP_API_URL`** | `http://localhost:8000` | Tự động | Đường dẫn URL của API Backend để Client Frontend gọi HTTP request tới. |
+
+### Biến tự động sinh bởi Docker Compose
+
+| Tên biến môi trường | Giá trị mặc định | Mô tả & Vai trò |
+| :--- | :--- | :--- |
+| **`DATABASE_URL`** | `postgresql://postgres:postgres@postgres:5432/rag_db` | Đường dẫn URI kết nối CSDL PostgreSQL cho SQLAlchemy ORM. |
+| **`REDIS_URL`** | `redis://redis:6379` | Đường dẫn kết nối Redis Broker cho Celery và bộ nhớ đệm cache. |
+| **`QDRANT_URL`** | `http://qdrant:6333` | Đường dẫn kết nối Qdrant Vector DB trong mạng nội bộ Docker. |
+| **`MINIO_URL`** | `http://minio:9000` | Đường dẫn kết nối MinIO Object Storage API trong mạng Docker. |
+| **`REACT_APP_API_URL`** | `http://localhost:8000` | Đường dẫn URL của API Backend để Client Frontend gọi HTTP request tới. |
+| **`OPENAI_API_KEY`** | `sk-placeholder-key` | Khóa API OpenAI (dự phòng, hiện không sử dụng chính). |
+| **`GOOGLE_API_KEY`** | *Trống* | Khóa API Google Gemini (dự phòng, hiện không sử dụng chính). |
 
 ---
 
 ## Hướng dẫn sử dụng
 
 ### 1. Giao diện trò chuyện thông thường (Chat Client)
-- **Tạo phòng trò chuyện mới:** Truy cập trang chủ [http://localhost](http://localhost), nhấn nút **"New Chat"** ở thanh thanh Sidebar bên trái để bắt đầu một phiên chat mới.
+- **Tạo phòng trò chuyện mới:** Truy cập trang chủ [http://localhost](http://localhost), nhấn nút **"Đoạn chat mới"** ở thanh Sidebar bên trái để bắt đầu một phiên chat mới.
 - **Hỏi đáp thông minh:** Nhập câu hỏi liên quan đến quy trình, chính sách hoặc tài liệu của GitLab (Ví dụ: *"Chính sách làm việc từ xa của GitLab như thế nào?"* hoặc *"GitLab hướng dẫn onboarding ra sao?"*).
-- **Theo dõi tài liệu tham chiếu:** Trong mỗi phản hồi từ chatbot, hệ thống sẽ hiển thị một danh sách các khối thông tin nhỏ chứa **"Nguồn tham khảo" (Sources)**. Bạn có thể nhấn vào để đọc đoạn văn gốc được trích xuất trực tiếp từ tài liệu nền làm căn cứ cho câu trả lời của AI.
-- **Lịch sử trò chuyện:** Hệ thống tự động lưu trữ các đoạn hội thoại theo phiên (`session_id`). Bạn có thể quay lại bất kỳ lúc nào thông qua danh sách phòng chat cũ ở sidebar hoặc xóa phòng chat khi không còn nhu cầu sử dụng.
+- **Theo dõi tài liệu tham chiếu:** Trong mỗi phản hồi từ chatbot, hệ thống sẽ hiển thị một danh sách các khối thông tin nhỏ chứa **"Nguồn tham khảo" (Sources)**. Bạn có thể nhấn vào để đọc đoạn văn gốc được trích xuất trực tiếp từ tài liệu nền làm căn cứ cho câu trả lời của AI. *Lưu ý: Với câu hỏi ngoài phạm vi GitLab Handbook (câu chào, kiến thức chung), hệ thống sẽ tự động ẩn nguồn tham khảo.*
+- **Lịch sử trò chuyện:** Hệ thống tự động lưu trữ các đoạn hội thoại theo phiên (`session_id`) trên trình duyệt (LocalStorage). Bạn có thể quay lại bất kỳ lúc nào thông qua danh sách phòng chat cũ ở sidebar, tìm kiếm, đổi tên, hoặc xóa phòng chat khi không còn nhu cầu sử dụng.
+- **Chế độ Sáng/Tối (Light/Dark Mode):** Nhấn nút chuyển đổi giao diện ở cuối sidebar để thay đổi giữa chế độ sáng ☀️ và tối 🌙.
 
 ### 2. Giao diện Quản trị (Admin Dashboard - `/admin`)
-Để vào trang quản trị, truy cập trực tiếp đường dẫn [http://localhost/admin](http://localhost/admin):
+Để vào trang quản trị, truy cập trực tiếp đường dẫn [http://localhost/admin](http://localhost/admin). Trang Admin có 4 module chính truy cập qua thanh điều hướng bên trái:
 
-1. **Dashboard Stats (Số liệu tổng quan):**
-   - Xem tổng quan các chỉ số đo lường: Tổng số thành viên đăng ký, tổng số phòng chat được tạo và tổng số vector lưu trong Qdrant.
+1. **Dashboard Stats (`/admin/dashboard`) — Số liệu tổng quan:**
+   - Xem tổng quan các chỉ số đo lường: Tổng số thành viên đăng ký, tổng số phòng chat được tạo, tổng số tin nhắn và tổng số vector lưu trong Qdrant.
    - Thống kê tình trạng tài liệu trong hệ thống (Đang xử lý, đã nhúng thành công, thất bại).
    - Kiểm tra trạng thái kết nối trực tiếp (Real-time Health Check) của PostgreSQL, Redis, Qdrant và dịch vụ Celery Worker.
-2. **Quản lý Tài Liệu (Documents Management):**
-   - **Tải lên tài liệu mới:** Kéo thả tệp PDF, DOCX, TXT vào vùng **Drag & Drop Zone**. Hệ thống sẽ ngay lập tức đẩy file lên MinIO Object Storage và tự động gửi một background task tới Celery Worker để thực thi chuỗi nạp (Chunking -> Embedding -> Vector DB).
+2. **Quản lý Tài Liệu (`/admin/documents`) — Documents Management:**
+   - **Tải lên tài liệu mới:** Kéo thả tệp vào vùng **Drag & Drop Zone**. Định dạng được hỗ trợ: `.json`, `.txt`, `.md`, `.pdf`, `.docx`. Hệ thống sẽ ngay lập tức đẩy file lên MinIO Object Storage và tự động gửi một background task tới Celery Worker để thực thi chuỗi nạp (Chunking → Embedding → Vector DB).
    - **Tái lập chỉ mục (Re-index):** Nhấp chọn biểu tượng Refresh cạnh tài liệu để bắt đầu nạp lại dữ liệu trong trường hợp phát hiện lỗi nhúng hoặc muốn cập nhật nội dung.
-   - **Xóa tài liệu (Delete):** Nhấn nút xóa để loại bỏ tài liệu khỏi MinIO, PostgreSQL và đồng thời xóa sạch các vector điểm tương ứng trong CSDL Vector Qdrant.
-3. **Quản lý Người dùng (Users Management):**
+   - **Xóa tài liệu (Delete):** Nhấn nút xóa để loại bỏ tài liệu khỏi **cả 3 nơi lưu trữ** đồng thời: MinIO (file gốc), PostgreSQL (metadata) và Qdrant (vector nhúng).
+3. **Quản lý Người dùng (`/admin/users`) — Users Management:**
    - Liệt kê danh sách tất cả các tài khoản người dùng có quyền truy cập hệ thống.
-   - Tạo tài khoản người dùng mới, thiết lập/thay đổi vai trò của người dùng (`admin` hoặc `user`) hoặc vô hiệu hóa tài khoản.
-4. **Cấu hình hệ thống (Settings Panel):**
-   - Giám sát các tham số vận hành RAG: mô hình nhúng cục bộ đang chạy, độ dài mảnh cắt (`chunk_size`), khoảng chồng lấp (`chunk_overlap`) và tình trạng API Keys.
+   - Tạo tài khoản người dùng mới (yêu cầu `username` và `email` duy nhất).
+   - Thiết lập/thay đổi vai trò của người dùng (`admin` hoặc `user`).
+   - Xóa tài khoản người dùng khỏi hệ thống.
+4. **Cấu hình hệ thống (`/admin/settings`) — Settings Panel:**
+   - Giám sát và tùy chỉnh các tham số vận hành RAG: mô hình nhúng cục bộ đang chạy, độ dài mảnh cắt (`chunk_size`), khoảng chồng lấp (`chunk_overlap`).
+   - **Cơ chế ràng buộc dữ liệu (Validation Rules):**
+     * **Chunk Size:** Cho phép cấu hình từ `100` đến `5000` ký tự.
+     * **Chunk Overlap:** Cho phép cấu hình từ `0` đến `chunk_size - 1` (bắt buộc phải nhỏ hơn `chunk_size` để đảm bảo logic cắt đoạn).
+     * Cả Frontend và Backend đều thực hiện xác thực (validation) chặt chẽ, hiển thị thông báo lỗi rõ ràng nếu nhập sai quy chuẩn.
+   - **Tác động của thay đổi:** Các thay đổi sẽ được lưu lập tức vào `rag_settings.json` và tự động áp dụng cho các tài liệu được nạp/tái lập chỉ mục (Re-index) sau thời điểm lưu cấu hình. (Lưu ý: Đối với tài liệu cũ đã nhúng trước đó, quản trị viên cần nhấn nút **Tái lập chỉ mục** để áp dụng cấu hình mới).
+   - Theo dõi tình trạng kết nối của các API Keys (Groq, OpenAI).
+   - Kiểm tra trạng thái hệ thống (Qdrant, Redis, Celery, Database).
+   - Lưu cấu hình RAG vào file `rag_settings.json` (persistent qua Docker volume).
 
-### 3. Hướng dẫn sử dụng chi tiết hệ thống REST API
-Hệ thống cung cấp tài liệu API chuẩn hóa tại `/docs`. Dưới đây là các Endpoint quan trọng hỗ trợ tích hợp ngoại vi:
+### 3. Định dạng tài liệu được hỗ trợ
 
-#### A. Nhóm API Chat & Lịch Sử
+| Định dạng | Phần mở rộng | Thư viện xử lý | Mô tả |
+| :--- | :---: | :--- | :--- |
+| **JSON** | `.json` | Python `json` | Dữ liệu GitLab Handbook có cấu trúc |
+| **Plain Text** | `.txt` | Python built-in | Tệp văn bản thuần |
+| **Markdown** | `.md` | Python built-in | Tài liệu Markdown |
+| **PDF** | `.pdf` | `pypdf` v4.2 | Tệp PDF (trích xuất text từ tất cả trang) |
+| **Word Document** | `.docx` | `python-docx` v1.1 | Tệp Microsoft Word |
+
+### 4. Hướng dẫn sử dụng chi tiết hệ thống REST API
+Hệ thống cung cấp tài liệu API chuẩn hóa tự động tại [http://localhost:8000/docs](http://localhost:8000/docs). Dưới đây là danh sách đầy đủ các Endpoint hỗ trợ tích hợp ngoại vi:
+
+#### A. API Hệ thống (System)
+* **`GET /health`** — Kiểm tra trạng thái hoạt động nhanh của Backend.
+* **`GET /`** — Trang chào mừng mặc định, xác nhận Backend đang chạy.
+
+#### B. Nhóm API Chat & Lịch Sử (`/api/chat`, `/api/history`)
 * **`POST /api/chat/`**
   - **Mục đích:** Gửi câu hỏi và nhận câu trả lời từ RAG.
   - **Payload mẫu:**
@@ -301,20 +359,70 @@ Hệ thống cung cấp tài liệu API chuẩn hóa tại `/docs`. Dưới đâ
       ]
     }
     ```
-* **`GET /api/history/sessions`**
-  - **Mục đích:** Trả về danh sách tất cả các phòng trò chuyện trước đây của người dùng.
-* **`GET /api/history/`**
-  - **Mục đích:** Truy xuất toàn bộ danh sách tin nhắn hội thoại cũ trong phòng chat cụ thể (truyền tham số query `session_id`).
+* **`GET /api/history/sessions`** — Trả về danh sách tất cả các phòng trò chuyện trước đây (hỗ trợ tham số `limit`, `offset`, `user_id`).
+* **`GET /api/history/?session_id=<id>`** — Truy xuất toàn bộ danh sách tin nhắn hội thoại cũ trong phòng chat cụ thể.
+* **`DELETE /api/history/?session_id=<id>`** — Xóa lịch sử trò chuyện (theo phiên cụ thể hoặc toàn bộ nếu không truyền `session_id`).
 
-#### B. Nhóm API Quản Trị (`/api/admin`)
-* **`GET /api/admin/dashboard`**
-  - **Mục đích:** Lấy trạng thái hoạt động của hạ tầng và thống kê tổng hợp số liệu.
-* **`GET /api/admin/documents`**
-  - **Mục đích:** Trả về danh sách toàn bộ các file tài liệu đã được tải lên kèm dung lượng, số lượng chunk cắt được và trạng thái nhúng vector.
-* **`DELETE /api/admin/documents/{doc_id}`**
-  - **Mục đích:** Xóa vĩnh viễn tài liệu khỏi mọi dịch vụ lưu trữ (MinIO, Postgres, Qdrant).
-* **`POST /api/admin/reindex/{doc_id}`**
-  - **Mục đích:** Bắt buộc Celery chạy lại luồng nhúng dữ liệu cho tệp tài liệu này.
+#### C. Nhóm API Upload File (`/api/upload`)
+* **`POST /api/upload/`** — Tải file tài liệu lên MinIO và tự động khởi tạo Celery ingest task bất đồng bộ. Trả về `task_id` để theo dõi tiến trình.
+* **`GET /api/upload/files`** — Liệt kê tất cả file đang lưu trữ trong MinIO Object Storage.
+* **`DELETE /api/upload/files/{object_name}`** — Xóa file khỏi MinIO và xóa các vectors tương ứng trong Qdrant.
+
+#### D. Nhóm API Ingest (`/api/ingest`)
+* **`POST /api/ingest/`** — Nạp trực tiếp file JSON Handbook vào Qdrant (chỉ chấp nhận `.json`).
+* **`GET /api/ingest/status`** — Kiểm tra trạng thái Qdrant và đếm tổng số chunk đã nhúng.
+
+#### E. Nhóm API Quản Trị (`/api/admin`)
+* **`GET /api/admin/dashboard`** — Lấy trạng thái hoạt động hạ tầng và thống kê tổng hợp (users, conversations, messages, vectors, documents).
+* **`GET /api/admin/documents`** — Danh sách tài liệu đã tải lên kèm dung lượng, số chunk và trạng thái nhúng.
+* **`POST /api/admin/documents`** — Tải file tài liệu lên và xử lý nhúng trực tiếp (JSON, TXT, MD, PDF, DOCX).
+* **`DELETE /api/admin/documents/{doc_id}`** — Xóa vĩnh viễn tài liệu khỏi mọi dịch vụ lưu trữ (MinIO + Postgres + Qdrant).
+* **`POST /api/admin/reindex/{doc_id}`** — Bắt buộc Celery chạy lại luồng nhúng dữ liệu cho tệp tài liệu này.
+* **`GET /api/admin/users`** — Danh sách toàn bộ tài khoản người dùng.
+* **`POST /api/admin/users`** — Tạo tài khoản người dùng mới (body: `username`, `email`, `role`).
+* **`PATCH /api/admin/users/{user_id}`** — Cập nhật vai trò người dùng (body: `role`).
+* **`DELETE /api/admin/users/{user_id}`** — Xóa tài khoản người dùng.
+* **`GET /api/admin/settings`** — Lấy cấu hình RAG hiện tại và trạng thái hệ thống.
+* **`PUT /api/admin/settings`** — Cập nhật cấu hình RAG (body: `chunk_size`, `chunk_overlap`, `embedding_model`).
+
+---
+
+## Lược đồ cơ sở dữ liệu (Database Schema)
+
+Hệ thống sử dụng **PostgreSQL** để lưu trữ dữ liệu quan hệ với 3 bảng chính:
+
+```mermaid
+erDiagram
+    users {
+        int id PK "Khóa chính, tự tăng"
+        varchar username UK "Tên đăng nhập (duy nhất)"
+        varchar email UK "Email (duy nhất)"
+        varchar role "Vai trò: admin | user"
+        timestamptz created_at "Thời điểm tạo tài khoản"
+    }
+
+    messages {
+        int id PK "Khóa chính, tự tăng"
+        text question "Nội dung câu hỏi của người dùng"
+        text answer "Nội dung câu trả lời từ AI"
+        text sources "JSON array nguồn tài liệu tham khảo"
+        varchar session_id "ID phiên trò chuyện (nhóm chat)"
+        int user_id FK "Liên kết tới bảng users"
+        timestamptz created_at "Thời điểm gửi tin nhắn"
+    }
+
+    documents {
+        int id PK "Khóa chính, tự tăng"
+        varchar filename "Tên file gốc tải lên"
+        varchar minio_object_name "Tên object trong MinIO Storage"
+        int file_size "Dung lượng file (bytes)"
+        int chunk_count "Số lượng chunk đã cắt"
+        varchar status "Trạng thái: processing | embedded | failed"
+        timestamptz created_at "Thời điểm tải file lên"
+    }
+
+    users ||--o{ messages : "has many"
+```
 
 ---
 
@@ -324,48 +432,123 @@ Hệ thống sử dụng cấu trúc **Monorepo** gọn gàng, rõ ràng và ph�
 
 ```text
 THAI-Group-Skibidi/
-├── backend/                 # FastAPI Backend & RAG Engine
-│   ├── ai_engine/          # Lớp xử lý AI chuyên biệt
-│   │   ├── embedding.py    # Khởi tạo mô hình nhúng cục bộ (paraphrase-multilingual)
-│   │   ├── processor.py    # Cắt nhỏ văn bản (Chunking), làm sạch ký tự lạ
-│   │   ├── vector_db.py    # Kết nối, tạo collection, chèn và xóa index trên Qdrant
-│   │   └── rag_chain.py    # Thiết lập RAG pipeline (Lấy context + Groq Llama 3)
-│   ├── app/                # FastAPI Application Core
-│   │   ├── api/            # API Endpoints được gom nhóm theo logic nghiệp vụ
-│   │   │   ├── admin.py    # Cổng API dành riêng cho trang quản trị Admin
-│   │   │   ├── chat.py     # Cổng API chính nhận thông điệp chatbot
-│   │   │   ├── history.py  # Cổng API quản trị lịch sử phiên trò chuyện
-│   │   │   ├── upload.py   # API tải file gốc lên MinIO & khởi động Celery Ingest
-│   │   │   └── ingest.py   # API tải file JSON Handbook định sẵn vào Qdrant
-│   │   ├── core/           # Cấu hình biến môi trường, thiết lập kết nối DB, Redis, MinIO
-│   │   ├── models/         # Khai báo cấu trúc bảng CSDL (PostgreSQL Models: User, Message, Document)
-│   │   ├── schemas/        # Định nghĩa cấu trúc truyền nhận dữ liệu (Pydantic Models)
-│   │   ├── services/       # Lớp xử lý logic nghiệp vụ phụ trợ
-│   │   ├── tasks/          # Định nghĩa tác vụ nền chạy bất đồng bộ bằng Celery
-│   │   └── worker/         # Khởi tạo Celery worker instance kết nối Redis
-│   ├── main.py             # Điểm khởi chạy chính của dịch vụ FastAPI Backend
-│   ├── requirements.txt    # Danh sách thư viện Python cần thiết
-│   └── dockerfile          # Hướng dẫn đóng gói container Backend
-├── frontend/               # React SPA Frontend
-│   ├── public/             # Tài nguyên tĩnh công khai (logo, favicon, v.v.)
-│   ├── src/                # Mã nguồn JavaScript của giao diện React
-│   │   ├── components/     # Các thành phần giao diện tái sử dụng (Sidebar, Chat Window)
-│   │   ├── services/       # Các hàm gọi API kết nối đến Backend qua Axios
-│   │   ├── pages/          # Các trang giao diện chính
-│   │   │   ├── Chat.jsx    # Trang chatbot người dùng tương tác
-│   │   │   └── AdminDocuments.jsx # Giao diện Quản trị viên quản lý danh sách tài liệu
-│   │   └── App.css         # CSS styling cao cấp, hiệu ứng chuyển màu
-│   ├── package.json        # Định nghĩa các thư viện Node.js và scripts khởi chạy
-│   └── dockerfile          # Hướng dẫn build Frontend React và chạy qua Nginx
-├── nginx/                  # Cấu hình Reverse Proxy Nginx
-│   └── default.conf        # Định tuyến cổng 80 cho các luồng requests (Frontend/Backend)
-├── data/                   # Lưu trữ dữ liệu bền vững qua Volume Mount
-│   ├── postgres/           # Cơ sở dữ liệu PostgreSQL vật lý
-│   ├── qdrant/             # Cơ sở dữ liệu Qdrant Vector vật lý
-│   └── minio/              # Tài liệu thô lưu trên MinIO
-├── docker-compose.yml      # File điều phối toàn bộ hệ thống microservices Docker
-├── .env.example            # Bản mẫu cấu hình biến môi trường
-└── README.md               # Tài liệu hướng dẫn sử dụng chi tiết hệ thống
+├── backend/                          # FastAPI Backend & RAG Engine
+│   ├── ai_engine/                   # Lớp xử lý AI chuyên biệt
+│   │   ├── __init__.py              # Khởi tạo module ai_engine
+│   │   ├── embedding.py             # Khởi tạo mô hình nhúng cục bộ (paraphrase-multilingual)
+│   │   ├── processor.py             # Cắt nhỏ văn bản (Chunking), làm sạch ký tự lạ
+│   │   ├── rag_chain.py             # Thiết lập RAG pipeline (Lấy context + Groq Llama 3)
+│   │   └── vector_db.py             # Kết nối, tạo collection, chèn và xóa index trên Qdrant
+│   ├── app/                         # FastAPI Application Core
+│   │   ├── api/                     # API Endpoints được gom nhóm theo logic nghiệp vụ
+│   │   │   ├── __init__.py          # Đăng ký và gom nhóm các API Router
+│   │   │   ├── admin.py             # Cổng API dành riêng cho trang quản trị Admin
+│   │   │   ├── chat.py              # Cổng API chính nhận thông điệp chatbot
+│   │   │   ├── history.py           # Cổng API quản trị lịch sử phiên trò chuyện
+│   │   │   ├── ingest.py            # API tải file JSON Handbook định sẵn vào Qdrant
+│   │   │   └── upload.py            # API tải file gốc lên MinIO & khởi động Celery Ingest
+│   │   ├── core/                    # Cấu hình hệ thống & kết nối hạ tầng
+│   │   │   ├── __init__.py          # Khởi tạo module core
+│   │   │   ├── celery_app.py        # Khởi tạo Celery App instance kết nối Redis Broker
+│   │   │   ├── config.py            # Đọc & quản lý biến môi trường (.env) bằng Pydantic Settings
+│   │   │   ├── database.py          # Thiết lập kết nối SQLAlchemy Engine & SessionLocal tới PostgreSQL
+│   │   │   └── minio_client.py      # Khởi tạo MinIO Client kết nối Object Storage
+│   │   ├── models/                  # Khai báo cấu trúc bảng CSDL (SQLAlchemy ORM Models)
+│   │   │   ├── __init__.py          # Export các model: User, Message, Document
+│   │   │   ├── document.py          # Model bảng Document (metadata tài liệu tải lên)
+│   │   │   ├── message.py           # Model bảng Message (tin nhắn hội thoại chat)
+│   │   │   └── user.py              # Model bảng User (thông tin người dùng & phân quyền)
+│   │   ├── schemas/                 # Định nghĩa cấu trúc truyền nhận dữ liệu (Pydantic Schemas)
+│   │   │   ├── __init__.py          # Export các schema dùng chung
+│   │   │   ├── chat.py              # Schema request/response cho API Chat
+│   │   │   ├── ingest.py            # Schema request/response cho API Ingest
+│   │   │   └── message.py           # Schema request/response cho Message & History
+│   │   ├── services/                # Lớp xử lý logic nghiệp vụ phụ trợ (Business Logic)
+│   │   │   ├── __init__.py          # Export các service classes
+│   │   │   ├── chat_service.py      # Xử lý logic hỏi đáp: nhúng câu hỏi, gọi RAG, lưu lịch sử
+│   │   │   ├── history_service.py   # Truy vấn & quản lý lịch sử phiên trò chuyện
+│   │   │   └── ingest_service.py    # Xử lý logic nạp tài liệu: đọc file, chunk, nhúng vector
+│   │   ├── tasks/                   # Định nghĩa tác vụ nền chạy bất đồng bộ bằng Celery
+│   │   │   └── ingest_task.py       # Celery Task xử lý pipeline nạp tài liệu nền
+│   │   └── worker/                  # Khởi tạo Celery Worker instance
+│   │       ├── __init__.py          # Khởi tạo module worker
+│   │       ├── database.py          # Session DB riêng cho worker process (tách biệt khỏi API)
+│   │       └── tasks.py             # Đăng ký & định nghĩa các Celery tasks cho worker
+│   ├── documents/                   # Thư mục chứa tài liệu mẫu hướng dẫn
+│   │   └── guide.txt               # Hướng dẫn sử dụng cơ bản
+│   ├── scripts/                     # Scripts tiện ích cho Backend
+│   │   └── ingest_handbook.py       # Script nạp dữ liệu Handbook ban đầu vào Vector DB
+│   ├── temp_celery_uploads/         # Thư mục tạm cho Celery Worker tải file xử lý
+│   ├── temp_uploads/                # Thư mục tạm cho API upload file
+│   ├── .dockerignore                # Loại trừ file không cần thiết khi build Docker image
+│   ├── dockerfile                   # Hướng dẫn đóng gói container Backend
+│   ├── entrypoint.sh                # Script khởi chạy container (migration DB + start server)
+│   ├── main.py                      # Điểm khởi chạy chính của dịch vụ FastAPI Backend
+│   ├── migrate_add_session.py       # Script migration bổ sung cột session vào CSDL
+│   └── requirements.txt             # Danh sách thư viện Python cần thiết
+│
+├── frontend/                         # React SPA Frontend
+│   ├── nginx/                       # Cấu hình Nginx riêng cho Frontend container
+│   │   └── default.conf             # Định tuyến SPA (fallback về index.html cho React Router)
+│   ├── public/                      # Tài nguyên tĩnh công khai
+│   │   └── index.html               # Template HTML gốc cho React mount
+│   ├── src/                         # Mã nguồn JavaScript của giao diện React
+│   │   ├── components/              # Các thành phần giao diện tái sử dụng
+│   │   │   ├── Chat.jsx             # Component Chat Window chính (hiển thị tin nhắn)
+│   │   │   └── admin/               # Các component dùng chung cho Admin Dashboard
+│   │   │       ├── AdminLayout.jsx  # Layout khung chính trang Admin (Sidebar + Content)
+│   │   │       ├── ConfirmModal.jsx # Modal xác nhận hành động nguy hiểm (Xóa, Vô hiệu hóa)
+│   │   │       └── StatusBadge.jsx  # Badge hiển thị trạng thái (Online/Offline/Processing)
+│   │   ├── pages/                   # Các trang giao diện chính
+│   │   │   ├── AdminDashboard.jsx   # Trang tổng quan thống kê Admin Dashboard
+│   │   │   ├── AdminDocuments.jsx   # Trang quản lý tài liệu (Upload, Re-index, Delete)
+│   │   │   ├── AdminSettings.jsx    # Trang cấu hình hệ thống RAG
+│   │   │   ├── AdminUsers.jsx       # Trang quản lý người dùng & phân quyền
+│   │   │   ├── Chat.jsx             # Trang chatbot người dùng tương tác
+│   │   │   └── Dashboard.jsx        # Trang Dashboard tổng quan cho người dùng thường
+│   │   ├── services/                # Các hàm gọi API kết nối đến Backend
+│   │   │   └── api.js               # Axios instance & các hàm gọi RESTful API
+│   │   ├── App.css                  # CSS styling cao cấp, hiệu ứng chuyển màu & Dark Mode
+│   │   ├── App.jsx                  # Component gốc React, cấu hình Router & Layout chính
+│   │   ├── index.html               # HTML entry point (Vite/Webpack)
+│   │   └── index.js                 # Điểm khởi chạy React (ReactDOM.render)
+│   ├── .dockerignore                # Loại trừ node_modules khi build Docker image
+│   ├── dockerfile                   # Hướng dẫn build Frontend React và phục vụ qua Nginx
+│   ├── index.html                   # HTML entry point chính (Vite root)
+│   ├── package.json                 # Định nghĩa các thư viện Node.js và scripts khởi chạy
+│   └── package-lock.json            # Khóa phiên bản chính xác các thư viện phụ thuộc
+│
+├── nginx/                            # Cấu hình Reverse Proxy Nginx (Gateway chính)
+│   └── default.conf                 # Định tuyến cổng 80: / → Frontend, /api/ → Backend
+│
+├── data/                             # Lưu trữ dữ liệu bền vững qua Docker Volume Mount
+│   ├── handbook/                    # Dữ liệu GitLab Handbook gốc (Markdown)
+│   │   ├── _index.md               # Trang mục lục chính Handbook
+│   │   ├── roadmap.md              # Lộ trình phát triển GitLab
+│   │   ├── about/                  # Thông tin giới thiệu về GitLab
+│   │   ├── communication/          # Quy tắc giao tiếp nội bộ
+│   │   ├── company/                # Thông tin công ty & cấu trúc tổ chức
+│   │   ├── finance/                # Chính sách tài chính
+│   │   ├── hiring/                 # Quy trình tuyển dụng
+│   │   ├── security/               # Chính sách bảo mật
+│   │   ├── total-rewards/          # Chế độ đãi ngộ & phúc lợi
+│   │   └── values/                 # Giá trị cốt lõi của GitLab
+│   ├── minio/                      # Dữ liệu MinIO Object Storage (Docker Volume)
+│   ├── postgres/                   # Dữ liệu PostgreSQL (Docker Volume)
+│   ├── qdrant/                     # Dữ liệu Qdrant Vector DB (Docker Volume)
+│   └── rag_settings.json           # File cấu hình tham số RAG (chunk_size, overlap, model)
+│
+├── backend_cache/                    # Cache mô hình HuggingFace Embedding (Docker Volume)
+│   └── huggingface/                 # Thư mục cache model sentence-transformers
+│
+├── scripts/                          # Scripts tiện ích cấp dự án (dự phòng mở rộng)
+│
+├── .env                              # File biến môi trường thực tế (không commit lên Git)
+├── .env.example                      # Bản mẫu cấu hình biến môi trường
+├── .gitignore                        # Quy tắc loại trừ file khỏi Git version control
+├── btl.drawio.png                    # Sơ đồ kiến trúc hệ thống (draw.io export)
+├── docker-compose.yml                # File điều phối toàn bộ hệ thống microservices Docker
+└── README.md                         # Tài liệu hướng dẫn sử dụng chi tiết hệ thống
 ```
 
 ---
@@ -373,7 +556,24 @@ THAI-Group-Skibidi/
 ## Thành viên nhóm
 
 Dự án được xây dựng và phát triển bởi đội ngũ thành viên **Skibidi Group**:
-Hoàng Quốc Hùng 
-Nguyễn Duy Khánh 24022361
-Ngô Trọng Hiệp
-Lương Quang Hoàng
+
+| STT | Họ và tên sinh viên | Mã số sinh viên |
+| :---: | :--- | :---: |
+| 1 | Hoàng Quốc Hùng | 24022343 |
+| 2 | Nguyễn Duy Khánh | 24022361 |
+| 3 | Ngô Trọng Hiệp | 24022325 |
+| 4 | Lương Quang Hoàng | 2402____ |
+
+---
+
+## Xử lý sự cố thường gặp (Troubleshooting)
+
+| Vấn đề | Nguyên nhân | Cách khắc phục |
+| :--- | :--- | :--- |
+| Container `backend` khởi động chậm hoặc restart liên tục | Lần đầu cần tải mô hình Embedding (~100MB) từ HuggingFace | Đợi 2-3 phút, kiểm tra log: `docker compose logs -f backend` |
+| Lỗi `GROQ_API_KEY` khi chat | Chưa cấu hình khóa API Groq | Điền `GROQ_API_KEY` trong file `.env` và restart: `docker compose restart backend` |
+| Chatbot trả lời "Không tìm thấy tài liệu liên quan" | Chưa nạp dữ liệu Handbook vào Vector DB | Vào Admin → Documents → Tải lên file tài liệu `.json`, `.pdf`, `.docx` |
+| Frontend hiển thị lỗi kết nối API | Backend chưa khởi động xong hoặc Nginx chưa sẵn sàng | Kiểm tra: `docker compose ps`, đảm bảo tất cả services đều `healthy` |
+| MinIO Console không truy cập được | Container MinIO chưa khởi động | Kiểm tra: `docker compose logs minio`, đảm bảo port `9001` không bị chiếm |
+| Port `80` bị chiếm bởi ứng dụng khác | Nginx không thể bind port 80 | Tắt ứng dụng chiếm port hoặc đổi port trong `docker-compose.yml` |
+| Lỗi `psycopg2` hoặc Database connection | PostgreSQL chưa sẵn sàng | Backend có healthcheck tự chờ Postgres, nếu vẫn lỗi: `docker compose restart backend` |
