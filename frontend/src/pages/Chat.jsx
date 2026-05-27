@@ -9,6 +9,7 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
   const [selectedSource, setSelectedSource] = useState(null);
   const bottomRef                     = useRef(null);
   const textareaRef                   = useRef(null);
+  const isSendingRef                  = useRef(false);
  
   // ── Khi đổi conversation (key thay đổi) reset messages ──────
   useEffect(() => {
@@ -32,8 +33,9 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
  
   // ── Gửi tin nhắn ────────────────────────────────────────────
   const handleSend = async () => {
-    if (!input.trim() || loading || !conversationId) return;
+    if (!input.trim() || loading || isSendingRef.current || !conversationId) return;
  
+    isSendingRef.current = true;
     const userMsg = {
       role:      'user',
       content:   input.trim(),
@@ -76,12 +78,13 @@ function Chat({ conversationId, initialMessages = [], onMessagesUpdate, onCreate
       onMessagesUpdate?.(conversationId, finalMessages);
     } finally {
       setLoading(false);
+      isSendingRef.current = false;
     }
   };
  
   // ── Enter gửi, Shift+Enter xuống dòng ───────────────────────
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
